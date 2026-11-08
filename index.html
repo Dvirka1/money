@@ -34,6 +34,9 @@ main{max-width:480px;margin:0 auto;padding:20px 16px 96px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px}
 h1{margin:0;font-size:1.3rem}
 h2{margin:0 0 12px;font-size:1rem;font-weight:700}
+.lh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.lh h2{margin:0}
+.pill.sm{font-size:.82rem;padding:4px 12px;flex:none}
 .seg{display:flex;gap:6px;background:var(--chip);border-radius:12px;padding:4px;margin-bottom:12px}
 .seg button{flex:1;font:700 .95rem 'Heebo',sans-serif;color:var(--muted);background:none;border:0;border-radius:9px;padding:8px;cursor:pointer}
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
@@ -189,8 +192,9 @@ small,.hint{color:var(--muted);font-size:.85rem}
     <div id="legend"></div>
   </section>
   <section class="card">
-    <h2 id="logt">יומן תנועות החודש</h2>
+    <div class="lh"><h2 id="logt">יומן תנועות החודש</h2><button class="pill sm" id="logtog" type="button" aria-controls="log" aria-expanded="true">הסתרה</button></div>
     <div id="log"></div>
+    <p class="empty" id="loghid" hidden></p>
     <button class="btn" id="more" style="width:100%;margin-top:8px" hidden>הצג עוד</button>
   </section>
 </div>
@@ -348,7 +352,7 @@ const clean=el=>{
 };
 
 let tx=[],target=0,catT={},recs=[],rules={},recDone=new Set();
-let mode='e',last=null,timer,user=lget('budget-user',''),logN=20,busy=false;
+let mode='e',last=null,timer,user=lget('budget-user',''),logN=20,busy=false,logHidden=lget('budget-log-hidden',false)===true,logCnt=[0,0];
 const T0=new Date();
 let viewY=T0.getFullYear(),viewM=T0.getMonth(),ck=curKey();
 const isCur=()=>{const d=new Date();return viewY===d.getFullYear()&&viewM===d.getMonth()};
@@ -571,8 +575,19 @@ function renderLog(list){
     const btns=x.del?`<button class="lb" data-act="restore" data-id="${id}">שחזור</button>`:`<button class="lb" data-act="edit" data-id="${id}">עריכה</button>${rcb}<button class="lb" data-act="del" data-id="${id}">מחיקה</button>`;
     return `<div class="lg${x.del?' del':''}"><div class="lt"><b>${esc(x.c)}</b><span class="${inc?'pos':''}">${inc?'+':''}${money(x.a)}</span></div>${x.note?`<small>${esc(x.note)}</small>`:''}<small>${when}${x.by?', נרשם על ידי '+esc(x.by):''}</small>${x.editedBy?`<small>נערך על ידי ${esc(x.editedBy)}${x.prev?`, במקור ${money(x.prev.a)} ב${esc(x.prev.c)}`:''}</small>`:''}${x.del?`<small>נמחק על ידי ${esc(x.delBy)||'לא ידוע'}</small>`:''}<div class="acts">${btns}</div></div>`;
   }).join(''):`<p class="empty">${busy?'טוען...':'אין תנועות בחודש הזה.'}</p>`;
-  $('more').hidden=rows.length<=logN;
+  logVis(rows.length,rows.filter(x=>!x.del).length);
 }
+/* hide / show the month log; the choice is remembered on this device */
+function logVis(total,live){
+  if(total!=null) logCnt=[total,live];
+  const [t,l]=logCnt;
+  $('log').hidden=logHidden;
+  $('loghid').hidden=!logHidden;
+  $('more').hidden=logHidden||t<=logN;
+  if(logHidden) $('loghid').textContent=busy?'היומן מוסתר.':l?`היומן מוסתר (${l} ${l===1?'תנועה':'תנועות'})`:'היומן מוסתר.';
+  const b=$('logtog'); b.textContent=logHidden?'הצגה':'הסתרה'; b.setAttribute('aria-expanded',String(!logHidden));
+}
+$('logtog').onclick=()=>{logHidden=!logHidden;lset('budget-log-hidden',logHidden);logVis()};
 let editing=null;
 function openEdit(id){
   const x=tx.find(t=>t.id===id); if(!x) return;
