@@ -25,9 +25,10 @@ html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:'Heebo',system-ui,-apple-system,'Segoe UI',Arial,sans-serif}
 main{max-width:480px;margin:0 auto;padding:20px 16px 96px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.pill{font:500 .9rem 'Heebo',sans-serif;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 14px;cursor:pointer}
+.pill{font:500 .9rem 'Heebo',sans-serif;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 14px;cursor:pointer;white-space:nowrap}
 .hero{padding:8px 4px 20px}
-#date{color:var(--muted);font-weight:500}
+#date{color:var(--muted);font-weight:500;font-size:.92rem;min-width:0}
+.tb{flex:none}
 #time{font-size:4.2rem;font-weight:800;line-height:1.05;letter-spacing:-.02em;font-variant-numeric:tabular-nums;direction:ltr;text-align:right}
 #greet{font-size:1.6rem;font-weight:500;color:var(--accent)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px}
@@ -102,6 +103,30 @@ small,.hint{color:var(--muted);font-size:.85rem}
 .fgrid .txt{margin:0}
 .chk{display:flex;align-items:center;gap:8px;margin:12px 0;font-size:.95rem}
 .chk input{width:20px;height:20px;accent-color:var(--accent)}
+.tb{display:flex;gap:8px}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:right;font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px;cursor:pointer}
+.nav b{display:block;font-size:1.05rem;margin-bottom:2px}
+.nav svg{width:20px;height:20px;flex:none;fill:none;stroke:var(--muted);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.nav:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.pc{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.pc button{font:800 1.15rem 'Heebo',sans-serif;color:var(--ink);background:var(--chip);border:2px solid var(--line);border-radius:14px;padding:16px 4px;cursor:pointer}
+.pc button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.pc button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.res{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+.res .big{font-size:2.4rem;font-weight:800;line-height:1.15}
+.sv{color:var(--accent)}
+.vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
+.pv{display:flex;gap:12px;align-items:flex-start}
+.pv img{width:84px;height:110px;object-fit:cover;border-radius:10px;border:1px solid var(--line);flex:none;background:var(--chip)}
+.prog{height:8px;border-radius:99px;background:var(--chip);overflow:hidden;margin:8px 0 6px}
+.prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.alts{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
+.alts:empty{display:none}
+.dup{background:var(--chip);border:1px solid var(--line);border-radius:12px;padding:12px;margin:0 0 12px;font-size:.92rem}
+.dup .lb{margin-top:8px}
+.thumb{width:52px;height:68px;padding:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--chip);cursor:pointer;flex:none}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.rli{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
 #v-login{padding-top:12vh}
 .sheet{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:20}
 .sheet .box{width:100%;max-width:480px;max-height:92vh;overflow:auto;background:var(--card);border-radius:22px 22px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px))}
@@ -119,7 +144,7 @@ small,.hint{color:var(--muted);font-size:.85rem}
 
 <div id="v-home">
   <section class="hero">
-    <div class="top"><div id="date"></div><button class="pill" id="gear">הגדרות</button></div>
+    <div class="top"><div id="date"></div><div class="tb"><button class="pill" id="morebtn">עוד דפים</button><button class="pill" id="gear">הגדרות</button></div></div>
     <div id="time"></div>
     <div id="greet"></div>
   </section>
@@ -211,7 +236,58 @@ small,.hint{color:var(--muted);font-size:.85rem}
   </section>
   <button class="btn" id="logout" style="width:100%">התנתקות</button>
 </div>
+
+<div id="v-more" hidden>
+  <div class="top" style="margin-bottom:16px"><h1>עוד דפים</h1><button class="pill" id="mrback">חזרה</button></div>
+  <button class="nav" id="nvrc"><span><b>קבלות</b><small>צילום קבלה וזיהוי אוטומטי של הסכום והקטגוריה</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+  <button class="nav" id="nvds"><span><b>מחשבון הנחה</b><small>הנחה של 18%, 20%, 25% או 30% על מחיר</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+</div>
+
+<div id="v-rc" hidden>
+  <div class="top" style="margin-bottom:16px"><h1>קבלות</h1><button class="pill" id="rcback">חזרה</button></div>
+  <section class="card">
+    <h2>הוספת קבלה</h2>
+    <p class="hint" style="margin:0 0 12px">מצלמים או בוחרים תמונה של קבלה. האפליקציה קוראת את הסכום, התאריך ובית העסק, מציעה קטגוריה ושומרת את ההוצאה יחד עם התמונה.</p>
+    <div class="fgrid"><button class="btn main" id="rccam">צילום קבלה</button><button class="btn" id="rcgal">בחירה מהגלריה</button></div>
+    <input class="vh" id="rcfc" type="file" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true">
+    <input class="vh" id="rcff" type="file" accept="image/*" tabindex="-1" aria-hidden="true">
+    <p class="hint" style="margin:10px 0 0">הקריאה נעשית בתוך המכשיר, והתמונה נשמרת באחסון הפרטי של הפרויקט שלכם. בפעם הראשונה יורד מנוע הקריאה (כ-8MB).</p>
+  </section>
+  <section class="card" id="rcwork" hidden>
+    <div class="pv"><img id="rcimg" alt="תצוגה מקדימה של הקבלה"><div style="flex:1;min-width:0"><b id="rcst">מכין את התמונה...</b><div class="prog"><i id="rcbar"></i></div><small id="rcnote"></small></div></div>
+    <div id="rcform" hidden style="margin-top:14px">
+      <small>סכום</small>
+      <div class="amt"><span>₪</span><input id="rcamt" type="text" inputmode="decimal" autocomplete="off" aria-label="סכום הקבלה"></div>
+      <div class="alts" id="rcalts"></div>
+      <small>בית עסק</small>
+      <input id="rcm" class="txt" type="text" placeholder="לא חובה" autocomplete="off">
+      <div class="fgrid"><div><small>תאריך</small><input id="rcd" class="txt" type="date"></div><div><small>קטגוריה</small><select id="rcc" class="txt"></select></div></div>
+      <p class="hint" id="rcwhy" style="margin:0 0 12px"></p>
+      <div class="dup" id="rcdup" hidden></div>
+      <button class="btn main" id="rcsave">שמירה</button>
+      <button class="btn" id="rcx" style="width:100%;margin-top:10px">ביטול</button>
+    </div>
+  </section>
+  <section class="card"><h2>קבלות אחרונות</h2><div id="rclist"><p class="empty">עוד אין קבלות.</p></div></section>
+</div>
+
+<div id="v-disc" hidden>
+  <div class="top" style="margin-bottom:16px"><h1>מחשבון הנחה</h1><button class="pill" id="dsback">חזרה</button></div>
+  <section class="card">
+    <h2>מחיר לפני הנחה</h2>
+    <div class="amt"><span>₪</span><input id="dsamt" type="text" inputmode="decimal" autocomplete="off" placeholder="הקלד מחיר" aria-label="מחיר לפני הנחה"></div>
+    <h2 style="margin-top:16px">אחוז הנחה</h2>
+    <div class="pc" id="dspc"></div>
+    <div class="res" id="dsres" aria-live="polite"></div>
+  </section>
+</div>
 </main>
+
+<div id="rv" class="sheet" hidden role="dialog" aria-modal="true" aria-label="תמונת קבלה"><div class="box">
+  <img id="rvimg" alt="תמונת הקבלה" style="width:100%;border-radius:12px;display:block">
+  <p class="hint" id="rvinfo"></p>
+  <button class="btn" id="rvx" style="width:100%">סגירה</button>
+</div></div>
 
 <div id="ap" class="sheet" hidden role="dialog" aria-modal="true" aria-label="תשלום ב-Apple Pay"><div class="box">
   <h2>תשלום ב-Apple Pay</h2>
@@ -242,12 +318,14 @@ small,.hint{color:var(--muted);font-size:.85rem}
 <div id="toast"><div><span id="msg"></span><button id="undo">ביטול</button></div></div>
 
 <script>
-const CATS=['שכר דירה','ועד בית','ארנונה','חשמל','מים','גז','מזון','ביגוד','קניות דביר','קניות נעמה','אינטרנט ביתי','מסעדות ובילויים','תחזוקת בית'];
+const CATS=['שכר דירה','ועד בית','ארנונה','חשמל','מים','גז','מזון','ביגוד','קניות דביר','קניות נעמה','אינטרנט ביתי','מסעדות ובילויים','תחזוקת בית','דלק'];
 const ICATS=['משכורת דביר','משכורת נעמה','בייביסיטר נעמה','עבודות תקשורת','מכירת ציוד'];
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const color=i=>`hsl(${Math.round((i*137.5)%360)} 62% ${i%2?46:56}%)`;
+/* הקטגוריה ה-14 (דלק) בגוון אפור-כחול, כי בגלגל הצבעים הרגיל היא קרובה מדי לאדום של שכר דירה */
+const color=i=>i===13?'hsl(215 14% 42%)':`hsl(${Math.round((i*137.5)%360)} 62% ${i%2?46:56}%)`;
 const money=n=>'₪'+n.toLocaleString('he-IL',{maximumFractionDigits:2});
+const money2=n=>'₪'+n.toLocaleString('he-IL',{minimumFractionDigits:2,maximumFractionDigits:2});
 const lget=(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}};
 const lset=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 const nm=s=>String(s||'').trim().replace(/\s+/g,' ').toLowerCase();
@@ -291,7 +369,7 @@ const SUPABASE_URL='https://gwikwesoddwwzzqozgyw.supabase.co';
 const SUPABASE_KEY='sb_publishable_PaRvJ6cEF-qKGq-PJwh7Pg_xxADIYV7';
 const sb=(window.supabase&&SUPABASE_URL.startsWith('https://'))?supabase.createClient(SUPABASE_URL,SUPABASE_KEY):null;
 let authed=false,ch=null,loading=false,again=false,catching=false;
-const fromRow=r=>({id:r.id,type:r.type,a:Number(r.a),c:r.c,t:Number(r.t),by:r.by_name,note:r.note,del:!!r.del,delBy:r.del_by,editedBy:r.edited_by,prev:r.prev||null,recId:r.rec_id||null});
+const fromRow=r=>({id:r.id,type:r.type,a:Number(r.a),c:r.c,t:Number(r.t),by:r.by_name,note:r.note,del:!!r.del,delBy:r.del_by,editedBy:r.edited_by,prev:r.prev||null,recId:r.rec_id||null,receipt:r.receipt||null});
 async function load(){
   if(!sb||!authed) return;
   if(loading){again=true;return}
@@ -315,6 +393,7 @@ async function load(){
     if(!$('ap').hidden) apSuggest(); /* החלונית נפתחת לפני שהכללים נטענו */
     if(document.activeElement!==$('tgt')) $('tgt').value=target||'';
     render(); renderSettings();
+    if(!$('v-rc').hidden) loadReceipts();
     await catchUp();
   }finally{loading=false;if(again){again=false;load()}}
 }
@@ -340,7 +419,7 @@ async function catchUp(){
 }
 async function addTx(o){
   if(!user){flash('בחרו קודם מי מתעד: דביר או נעמה');return false}
-  const {data,error}=await sb.from('tx').insert({type:o.type,a:o.a,c:o.c,t:o.t,by_name:user,note:o.note||null,rec_id:o.rec_id||null,rec_month:o.rec_month||null}).select('id').single();
+  const {data,error}=await sb.from('tx').insert({type:o.type,a:o.a,c:o.c,t:o.t,by_name:user,note:o.note||null,rec_id:o.rec_id||null,rec_month:o.rec_month||null,receipt:o.receipt||null}).select('id').single();
   if(error){flash(error.code==='23505'?'כבר נוסף החודש':'לא ניתן לשמור. בדקו חיבור לאינטרנט');await load();return false}
   last=data.id; goCur(); await load(); return true;
 }
@@ -481,7 +560,8 @@ function renderLog(list){
   $('log').innerHTML=rows.length?rows.slice(0,logN).map(x=>{
     const d=new Date(x.t),inc=x.type==='i',id=esc(x.id);
     const when=d.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-    const btns=x.del?`<button class="lb" data-act="restore" data-id="${id}">שחזור</button>`:`<button class="lb" data-act="edit" data-id="${id}">עריכה</button><button class="lb" data-act="del" data-id="${id}">מחיקה</button>`;
+    const rcb=x.receipt?`<button class="lb" data-act="rcp" data-p="${esc(x.receipt)}" data-id="${id}">קבלה</button>`:'';
+    const btns=x.del?`<button class="lb" data-act="restore" data-id="${id}">שחזור</button>`:`<button class="lb" data-act="edit" data-id="${id}">עריכה</button>${rcb}<button class="lb" data-act="del" data-id="${id}">מחיקה</button>`;
     return `<div class="lg${x.del?' del':''}"><div class="lt"><b>${esc(x.c)}</b><span class="${inc?'pos':''}">${inc?'+':''}${money(x.a)}</span></div>${x.note?`<small>${esc(x.note)}</small>`:''}<small>${when}${x.by?', נרשם על ידי '+esc(x.by):''}</small>${x.editedBy?`<small>נערך על ידי ${esc(x.editedBy)}${x.prev?`, במקור ${money(x.prev.a)} ב${esc(x.prev.c)}`:''}</small>`:''}${x.del?`<small>נמחק על ידי ${esc(x.delBy)||'לא ידוע'}</small>`:''}<div class="acts">${btns}</div></div>`;
   }).join(''):`<p class="empty">${busy?'טוען...':'אין תנועות בחודש הזה.'}</p>`;
   $('more').hidden=rows.length<=logN;
@@ -520,6 +600,7 @@ $('log').addEventListener('click',async e=>{
   const b=e.target.closest('.lb'); if(!b) return;
   const act=b.dataset.act;
   if(act==='edit') return openEdit(b.dataset.id);
+  if(act==='rcp'){const x=tx.find(t=>t.id===b.dataset.id);return openReceipt(b.dataset.p,x?`${x.c}, ${money(x.a)}${x.note?', '+x.note:''}`:'')}
   const del=act==='del';
   if(await setDel(b.dataset.id,del)) flash(del?'התנועה נמחקה ונשארה ביומן. אפשר לשחזר אותה':'התנועה שוחזרה');
 });
@@ -561,15 +642,26 @@ $('apusr').addEventListener('click',e=>{const b=e.target.closest('button');if(b)
 $('apx').onclick=closeAp;
 $('apone').onclick=()=>{if(apSug)apSave(apSug)};
 $('apgrid').addEventListener('click',e=>{const b=e.target.closest('button');if(b)apSave(CATS[+b.dataset.i])});
-addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('ed').hidden)closeEdit();else if(!$('ap').hidden)closeAp()}});
+addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('rv').hidden)$('rv').hidden=true;else if(!$('ed').hidden)closeEdit();else if(!$('ap').hidden)closeAp()}});
 
 /* ---------- settings ---------- */
+const VIEWS={settings:'v-set',more:'v-more',receipts:'v-rc',discount:'v-disc'};
 function show(){
-  const s=location.hash==='#settings';
-  $('v-login').hidden=authed; $('v-home').hidden=s||!authed; $('v-set').hidden=!s||!authed; window.scrollTo(0,0);
+  const cur=VIEWS[location.hash.slice(1)]||'v-home';
+  $('v-login').hidden=authed;
+  ['v-home','v-set','v-more','v-rc','v-disc'].forEach(id=>{$(id).hidden=!authed||id!==cur});
+  window.scrollTo(0,0);
+  if(cur==='v-rc'&&authed) loadReceipts();
+  if(cur!=='v-rc'&&tw&&!rcBusy){tw.terminate();tw=null} /* משחרר זיכרון של מנוע הקריאה */
 }
 $('gear').onclick=()=>{location.hash='settings'};
 $('back').onclick=()=>{location.hash='home'};
+$('morebtn').onclick=()=>{location.hash='more'};
+$('mrback').onclick=()=>{location.hash='home'};
+$('nvrc').onclick=()=>{location.hash='receipts'};
+$('nvds').onclick=()=>{location.hash='discount'};
+$('rcback').onclick=()=>{location.hash='more'};
+$('dsback').onclick=()=>{location.hash='more'};
 addEventListener('hashchange',show);
 
 async function saveSettings(patch,okMsg){
@@ -670,15 +762,366 @@ $('xl').onclick=async()=>{
     const exps=rows.filter(r=>r.type!=='i'),inc=rows.filter(r=>r.type==='i').reduce((t,r)=>t+r.a,0),exp=exps.reduce((t,r)=>t+r.a,0);
     const cat=CATS.map(c=>[c,exps.filter(r=>r.c===c).reduce((t,r)=>t+r.a,0)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
     const sum=[['דוח חודשי',$('xm').value],[],['הכנסות',inc],['הוצאות',exp],['יתרה',inc-exp],['יעד הוצאות',target||''],['נשאר מהיעד (שלילי = חריגה)',target?target-exp:''],[],['קטגוריה','סכום','אחוז מההוצאות','יעד לקטגוריה'],...cat.map(([c,v])=>[c,v,{t:'n',v:v/exp,z:'0%'},catT[c]||'']),[],['הכנסות לפי מקור','סכום'],...ICATS.map(c=>[c,rows.filter(r=>r.type==='i'&&r.c===c).reduce((t,r)=>t+r.a,0)]).filter(x=>x[1]>0)];
-    const det=[['תאריך','שעה','סוג','קטגוריה','סכום','נרשם על ידי','הערה'],...rows.map(r=>{const d=new Date(r.t);return[d.toLocaleDateString('en-GB'),d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),r.type==='i'?'הכנסה':'הוצאה',r.c,r.a,r.by||'',r.note||'']})];
+    const det=[['תאריך','שעה','סוג','קטגוריה','סכום','נרשם על ידי','הערה','קבלה מצורפת'],...rows.map(r=>{const d=new Date(r.t);return[d.toLocaleDateString('en-GB'),d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),r.type==='i'?'הכנסה':'הוצאה',r.c,r.a,r.by||'',r.note||'',r.receipt?'כן':'']})];
     const w1=XLSX.utils.aoa_to_sheet(sum),w2=XLSX.utils.aoa_to_sheet(det);
-    w1['!cols']=[{wch:28},{wch:14},{wch:16},{wch:14}]; w2['!cols']=[{wch:12},{wch:8},{wch:10},{wch:20},{wch:12},{wch:14},{wch:22}];
+    w1['!cols']=[{wch:28},{wch:14},{wch:16},{wch:14}]; w2['!cols']=[{wch:12},{wch:8},{wch:10},{wch:20},{wch:12},{wch:14},{wch:22},{wch:12}];
     const wb=XLSX.utils.book_new(); wb.Workbook={Views:[{RTL:true}]};
     XLSX.utils.book_append_sheet(wb,w1,'סיכום'); XLSX.utils.book_append_sheet(wb,w2,'תנועות');
     const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
     const url=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));const lnk=document.createElement('a');lnk.href=url;lnk.download=`budget-${$('xm').value}.xlsx`;document.body.appendChild(lnk);lnk.click();lnk.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
   }catch(err){flash('לא הצלחנו להפיק את הקובץ')}
 };
+
+/* ---------- מחשבון הנחה ---------- */
+const DISC=[18,20,25,30];
+let dsP=null;
+$('dspc').innerHTML=DISC.map(p=>`<button type="button" data-p="${p}" aria-pressed="false">${p}%</button>`).join('');
+function renderDisc(){
+  const a=parseFloat($('dsamt').value)||0,box=$('dsres');
+  document.querySelectorAll('#dspc button').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.p===dsP));
+  if(!(a>0)||dsP==null){box.innerHTML=`<p class="hint" style="margin:0">${a>0?'בחרו אחוז הנחה':'הקלידו מחיר ובחרו אחוז הנחה'}</p>`;return}
+  const c=Math.round(a*100),sv=Math.round(c*dsP/100),af=c-sv;
+  box.innerHTML=`<small>מחיר אחרי הנחה של ${dsP}%</small><div class="big">${money2(af/100)}</div><div class="two"><div><small>מחיר לפני הנחה</small><b>${money2(c/100)}</b></div><div><small>חסכון</small><b class="sv">${money2(sv/100)}</b></div></div>`;
+}
+$('dsamt').addEventListener('input',()=>{clean($('dsamt'));renderDisc()});
+$('dspc').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;dsP=+b.dataset.p;renderDisc()});
+renderDisc();
+
+/* ---------- קבלות: צילום, קריאה בתוך המכשיר (Tesseract) וזיהוי קטגוריה ---------- */
+/* מילות מפתח לפי קטגוריה. '=' בתחילת מילה: התאמה למילה שלמה בלבד (למילים קצרות). הארוכה ביותר שמתאימה גוברת */
+const RC_RULES=[
+ ['מזון',['שופרסל','shufersal','רמי לוי','רמילוי','ramilevy','ויקטורי','victory','יוחננוף','yochananof','טיב טעם','tivtaam','אושר עד','osherad','מחסני השוק','חצי חינם','יינות ביתן','ביתן','קשת טעמים','פרש מרקט','freshmarket','סופר יודה','סטופ מרקט','stopmarket','קרפור','carrefour','=מגה','=mega','=אמפם','ampm','נתיב החסד','שוק העיר','זול ובגדול','פוליצר','=מכולת','מינימרקט','=מרקט','supermarket','מאפיית','bakery']],
+ ['דלק',['=פז','=paz','סונול','sonol','דור אלון','doralon','=דלק','=delek','תדלוק','בנזין','=סולר','אוקטן','octane','=טן','=ten','=yellow','=ילו']],
+ ['מסעדות ובילויים',['מסעדה','מסעדת','restaurant','בורגר','burger','מקדונלד','mcdonald','ארומה','aroma','=קפה','=cafe','=coffee','קופיקס','cofix','לנדוור','landwer','=גרג','פיצה','pizza','דומינו','domino','=פאב','=pub','שווארמה','פלאפל','סושי','sushi','גלידה','=גולדה','וולט','=wolt','תן ביס','10bis','סינמה','cinema','יס פלאנט','הוט סינמה','קולנוע','תיאטרון','הצגה','בר מזל']],
+ ['ביגוד',['קסטרו','castro','=זארה','=zara','h&m','=פוקס','=fox','=גולף','=golf','רנואר','renuar','הוניגמן','honigman','טרמינל איקס','terminalx','=שילב','shilav','אדידס','adidas','נייקי','=nike','=מנגו','=mango','bershka','pull&bear','stradivarius','americaneagle','אמריקן איגל','גולברי','golbary','ביגוד','הלבשה','נעליים']],
+ ['תחזוקת בית',['איקאה','ikea','=אייס','=ace','הום סנטר','homecenter','טמבור','tambour','נגרייה','חומרי בניין','אינסטלציה','שרברב','חשמלאי','מנעולן','שיפוצים']],
+ ['חשמל',['חברת החשמל','iec','electriccorp']],
+ ['גז',['סופרגז','supergas','אמישראגז','amisragas','פזגז','pazgas','גז ביתי']],
+ ['מים',['תאגיד המים','תאגיד מים','מקורות','מי אביבים','מי רעננה','מי הרצליה','מי שבע']],
+ ['אינטרנט ביתי',['בזק','bezeq','=הוט','=hot','סלקום','cellcom','נטוויז','netvision','אינטרנט']],
+ ['ועד בית',['ועד בית','ועד הבית']],
+ ['ארנונה',['ארנונה']],
+ ['שכר דירה',['שכר דירה','שכירות']]
+];
+const BIDI=/[‎‏‪-‮⁦-⁩]/g;
+const squash=s=>String(s||'').toLowerCase().replace(BIDI,'').replace(/[\s'"`´׳״’”“.,\-_|:;()*]/g,'');
+const tokensOf=s=>String(s||'').toLowerCase().replace(BIDI,'').split(/[^0-9a-zא-ת]+/).filter(Boolean);
+/* מציע קטגוריה: קודם בתי עסק שנלמדו, אחר כך המילון */
+function catGuess(text){
+  const sq=squash(text),tk=new Set(tokensOf(text));
+  let best=null;
+  Object.keys(rules).forEach(k=>{
+    const q=squash(k);
+    if(q.length>=3&&CATS.includes(rules[k])&&sq.includes(q)&&(!best||q.length>best.len)) best={c:rules[k],len:q.length,src:'learned',hit:k};
+  });
+  if(best) return best;
+  RC_RULES.forEach(([c,kws])=>kws.forEach(kw=>{
+    const only=kw[0]==='=',w=only?kw.slice(1):kw,q=squash(w);
+    const ok=only||q.length<4?tk.has(w.toLowerCase()):sq.includes(q);
+    if(ok&&(!best||q.length>best.len)) best={c,len:q.length,src:'dict',hit:w};
+  }));
+  return best;
+}
+/* קורא את הטקסט שהזיהוי החזיר: סכום (עם חלופות), תאריך, בית עסק וקטגוריה מוצעת */
+function parseReceipt(raw){
+  const text=String(raw||'').replace(BIDI,'').replace(/[״”“]/g,'"').replace(/[׳’‘´`]/g,"'")
+    .replace(/(\d)\s+([.,])\s*(\d{2})(?!\d)/g,'$1$2$3').replace(/(\d)\s*([.,])\s+(\d{2})(?!\d)/g,'$1$2$3');
+  const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const TOTAL=/לתשלום|סה\W{0,2}כ|סך\s*הכל|סכום|total|amount\s*due|to\s*pay|balance\s*due|grand/i;
+  const STRONG=/לתשלום|total|amount\s*due|to\s*pay|balance\s*due/i;
+  const PAY=/אשראי|ויזה|visa|מאסטר|master|כרטיס|דביט|אמצעי\s*תשלום|credit|card|שולם/i;
+  const VAT=/מע\W{0,2}מ|vat|tax/i;
+  const SKIP=/עודף|change|מזומן|cash|טיפ|\btip\b|הנחה|discount|מחיר\s*ל|ליטר|כמות|יח\W|unit|qty|פקס|טל[:.\s]|\btel\b|אסמכתא|הקצאה|מספר/i;
+  const AMT=/(^|[^\d.,])(\d{1,3}(?:,\d{3})+|\d{1,6})[.,](\d{2})(?!\d)/g;
+  const amountsIn=ln=>{const out=[];let m;AMT.lastIndex=0;while((m=AMT.exec(ln))){const v=parseFloat(m[2].replace(/,/g,'')+'.'+m[3]);if(v>0&&v<100000)out.push(v)}return out};
+  const hasLetters=s=>/[A-Za-zא-ת]/.test(s);
+  const found=[];
+  lines.forEach((ln,i)=>{
+    let vals=amountsIn(ln);
+    /* סריקה "מפוזרת": התווית בשורה אחת והסכום בשורה שאחריה */
+    if(!vals.length&&(TOTAL.test(ln)||PAY.test(ln))){
+      for(let j=i+1;j<=i+3&&j<lines.length;j++){if(!hasLetters(lines[j])){const v=amountsIn(lines[j]);if(v.length){vals=v;break}}}
+    }
+    const skip=(SKIP.test(ln)&&!TOTAL.test(ln))||(VAT.test(ln)&&!/כולל|incl/i.test(ln));
+    vals.forEach(v=>found.push({v,ln,skip}));
+  });
+  const by=new Map();
+  found.forEach(f=>{
+    if(f.skip) return;
+    const k=f.v.toFixed(2),o=by.get(k)||{v:f.v,s:0,tot:false};
+    o.s+=0.5;
+    if(TOTAL.test(f.ln)){o.s+=STRONG.test(f.ln)?4:3;o.tot=true}
+    if(PAY.test(f.ln)) o.s+=2;
+    by.set(k,o);
+  });
+  const cands=[...by.values()].sort((a,b)=>b.s-a.s||b.v-a.v);
+  const best=cands[0]||null;
+  const conf=!best?'none':(best.tot&&best.s>=4.5)?'high':(best.tot||best.s>=2.5)?'mid':'low';
+  const alts=cands.slice(1).filter(c=>c.s>=2).slice(0,3).map(c=>c.v);
+  /* תאריך: יום/חודש/שנה כמקובל בישראל, או שנה-חודש-יום */
+  const now=new Date(),lo=new Date(now.getFullYear()-3,now.getMonth(),now.getDate()).getTime(),hi=now.getTime()+864e5;
+  const okDate=(y,m,d)=>{const t=new Date(y,m-1,d);return t.getFullYear()===y&&t.getMonth()===m-1&&t.getDate()===d&&t.getTime()>=lo&&t.getTime()<=hi?{y,m,d}:null};
+  let date=null,m;
+  const dr=/(^|[^\d])(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4}|\d{2})(?!\d)/g,ir=/(^|[^\d])(20\d{2})[\/.\-](\d{1,2})[\/.\-](\d{1,2})(?!\d)/g;
+  while(!date&&(m=dr.exec(text))){const y=+m[4]<100?2000+ +m[4]:+m[4];date=okDate(y,+m[3],+m[2])}
+  while(!date&&(m=ir.exec(text))){date=okDate(+m[2],+m[3],+m[4])}
+  /* בית עסק: השורה המשמעותית הראשונה בראש הקבלה */
+  const NOTNAME=/חשבונית|קבלה|invoice|receipt|ח\W?פ|ע\W?מ|טל[:.\s]|טלפון|tel[:.]|פקס|תאריך|date/i;
+  let merchant='';
+  for(let i=0;i<Math.min(7,lines.length)&&!merchant;i++){
+    const c=lines[i].replace(/[|:;_~=*#<>\[\]{}]+/g,' ').replace(/\s+/g,' ').trim();
+    if(((c.match(/[A-Za-zא-ת]/g)||[]).length>=3)&&!NOTNAME.test(c)) merchant=c.slice(0,40);
+  }
+  const guess=catGuess(text);
+  if(!merchant&&guess) merchant=guess.hit;
+  return {best:best?best.v:null,alts,conf,date,merchant,guess};
+}
+
+/* --- הכנת התמונה לקריאה: גווני אפור, תיקון צל ותאורה לא אחידה, מתיחת ניגודיות --- */
+function loadImg(file){
+  return new Promise((res,rej)=>{
+    const url=URL.createObjectURL(file),im=new Image();
+    im.onload=()=>{URL.revokeObjectURL(url);res(im)};
+    im.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('img'))};
+    im.src=url;
+  });
+}
+function toCanvas(img,max){
+  const w0=img.naturalWidth||img.width,h0=img.naturalHeight||img.height,k=Math.min(1,max/Math.max(w0,h0));
+  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(w0*k));c.height=Math.max(1,Math.round(h0*k));
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);
+  return c;
+}
+function prepOcr(src){
+  const w=src.width,h=src.height,n=w*h;
+  const d=src.getContext('2d').getImageData(0,0,w,h),p=d.data;
+  const g=new Float32Array(n);
+  for(let i=0,j=0;i<n;i++,j+=4) g[i]=0.299*p[j]+0.587*p[j+1]+0.114*p[j+2];
+  /* רקע (צבע הנייר): עותק קטן, "הסרת" כתב בעזרת מקסימום מקומי, טשטוש, והגדלה חזרה */
+  const sw=Math.max(8,Math.round(w/8)),sh=Math.max(8,Math.round(h/8));
+  const sc=document.createElement('canvas');sc.width=sw;sc.height=sh;
+  const sx=sc.getContext('2d');sx.imageSmoothingQuality='high';sx.drawImage(src,0,0,sw,sh);
+  const sp=sx.getImageData(0,0,sw,sh).data;
+  let s=new Float32Array(sw*sh);
+  for(let i=0,j=0;i<s.length;i++,j+=4) s[i]=0.299*sp[j]+0.587*sp[j+1]+0.114*sp[j+2];
+  const blur=(a,r)=>{ /* טשטוש קופסה מופרד, פעמיים */
+    for(let it=0;it<2;it++){
+      const t=new Float32Array(a.length);
+      for(let y=0;y<sh;y++){let acc=0,cnt=0;const o=y*sw;for(let x=-r;x<sw;x++){const a1=x+r,a0=x-r-1;if(a1<sw){acc+=a[o+a1];cnt++}if(a0>=0){acc-=a[o+a0];cnt--}if(x>=0)t[o+x]=acc/cnt}}
+      const u=new Float32Array(a.length);
+      for(let x=0;x<sw;x++){let acc=0,cnt=0;for(let y=-r;y<sh;y++){const a1=y+r,a0=y-r-1;if(a1<sh){acc+=t[a1*sw+x];cnt++}if(a0>=0){acc-=t[a0*sw+x];cnt--}if(y>=0)u[y*sw+x]=acc/cnt}}
+      a=u;
+    }
+    return a;
+  };
+  const dil=(a,r)=>{const t=new Float32Array(a.length);for(let y=0;y<sh;y++)for(let x=0;x<sw;x++){let m=0;for(let yy=Math.max(0,y-r);yy<=Math.min(sh-1,y+r);yy++)for(let xx=Math.max(0,x-r);xx<=Math.min(sw-1,x+r);xx++){const v=a[yy*sw+xx];if(v>m)m=v}t[y*sw+x]=m}return t};
+  s=blur(dil(s,2),Math.max(2,Math.round(Math.max(sw,sh)/12)));
+  const hist=new Uint32Array(256),out=new Float32Array(n);
+  for(let y=0;y<h;y++){
+    const fy=Math.min(sh-1.001,Math.max(0,(y+.5)*sh/h-.5)),y0=Math.floor(fy),ty=fy-y0;
+    for(let x=0;x<w;x++){
+      const fx=Math.min(sw-1.001,Math.max(0,(x+.5)*sw/w-.5)),x0=Math.floor(fx),tx_=fx-x0,i0=y0*sw+x0;
+      const bg=(s[i0]*(1-tx_)+s[i0+1]*tx_)*(1-ty)+(s[i0+sw]*(1-tx_)+s[i0+sw+1]*tx_)*ty;
+      const v=Math.min(255,g[y*w+x]/Math.max(bg,1)*235);
+      out[y*w+x]=v;hist[v|0]++;
+    }
+  }
+  let lo=0,hi=255,acc=0;
+  for(let i=0;i<256;i++){acc+=hist[i];if(acc>=n*0.01){lo=i;break}}
+  acc=0;for(let i=255;i>=0;i--){acc+=hist[i];if(acc>=n*0.01){hi=i;break}}
+  if(hi-lo<30){lo=0;hi=255}
+  const k=255/(hi-lo);
+  for(let i=0,j=0;i<n;i++,j+=4){const v=Math.max(0,Math.min(255,(out[i]-lo)*k));p[j]=p[j+1]=p[j+2]=v;p[j+3]=255}
+  const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').putImageData(d,0,0);
+  return c;
+}
+
+/* --- מנוע הקריאה (קבצים מקומיים באתר, עברית+אנגלית) --- */
+let tw=null,tessP=null,tessLog=()=>{},rcBusy=false;
+const absUrl=p=>new URL(p,location.href).href;
+function loadTess(){
+  if(window.Tesseract) return Promise.resolve();
+  return tessP||(tessP=new Promise((res,rej)=>{
+    const s=document.createElement('script');s.src='ocr/tesseract.min.js';
+    s.onload=res;s.onerror=()=>{tessP=null;rej(new Error('tess'))};document.head.appendChild(s);
+  }));
+}
+async function getWorker(){
+  await loadTess();
+  if(!tw) tw=await Tesseract.createWorker('heb+eng',1,{workerPath:absUrl('ocr/worker.min.js'),corePath:absUrl('ocr/core'),langPath:absUrl('ocr/lang'),logger:m=>tessLog(m)});
+  return tw;
+}
+const rank={none:0,low:1,mid:2,high:3};
+async function ocrReceipt(canvas){
+  const w=await getWorker();
+  await w.setParameters({tessedit_pageseg_mode:'6'});
+  let r=await w.recognize(canvas),p=parseReceipt(r.data.text);
+  if(rank[p.conf]<2){ /* לא נמצאה שורת סיכום: ניסיון שני בפריסת טקסט מפוזרת */
+    await w.setParameters({tessedit_pageseg_mode:'11'});
+    r=await w.recognize(canvas);
+    const p2=parseReceipt(r.data.text);
+    if(rank[p2.conf]>rank[p.conf]) p=p2;
+  }
+  return p;
+}
+
+/* --- הזרימה במסך --- */
+let rc=null,rcSeq=0,rcSeq0=0,rcUrl=null;
+const todayStr=()=>{const n=new Date();return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate())};
+function rcProg(msg,f){$('rcst').textContent=msg;$('rcbar').style.width=Math.round(Math.max(0,Math.min(1,f))*100)+'%'}
+function rcClear(){
+  rc=null;rcSeq++;$('rcwork').hidden=true;$('rcform').hidden=true;$('rcdup').hidden=true;
+  if(rcUrl){URL.revokeObjectURL(rcUrl);rcUrl=null}
+  $('rcimg').removeAttribute('src');$('rcfc').value='';$('rcff').value='';
+}
+tessLog=m=>{
+  const st=m.status||'';
+  if(st==='loading tesseract core') rcProg('טוען את מנוע הקריאה...',.1+(m.progress||0)*.1);
+  else if(st==='loading language traineddata') rcProg('טוען נתוני שפה...',.2+(m.progress||0)*.15);
+  else if(st==='initializing api'||st==='initializing tesseract') rcProg('מאתחל...',.38);
+  else if(st==='recognizing text') rcProg('קורא את הקבלה...',.4+(m.progress||0)*.55);
+};
+async function rcStart(file){
+  if(!file||rcBusy) return;
+  rcClear(); const my=rcSeq; rcBusy=true;
+  $('rcwork').hidden=false; rcProg('מכין את התמונה...',.03); $('rcnote').textContent='';
+  try{
+    let img;
+    try{img=await loadImg(file)}catch(e){flash('לא ניתן לפתוח את התמונה');rcClear();return}
+    const up=toCanvas(img,1600);
+    const blob=await new Promise(r=>up.toBlob(r,'image/jpeg',0.72));
+    if(!blob){flash('לא ניתן לעבד את התמונה');rcClear();return}
+    rcUrl=URL.createObjectURL(blob); $('rcimg').src=rcUrl;
+    rc={blob,guess:null,key:''};
+    let p=null,failed=false;
+    try{p=await ocrReceipt(prepOcr(toCanvas(img,2400)))}catch(e){failed=true}
+    if(my!==rcSeq) return;
+    rcFill(p,failed);
+  }finally{rcBusy=false}
+}
+function rcFill(p,failed){
+  p=p||{best:null,alts:[],conf:'none',date:null,merchant:'',guess:null};
+  rc.guess=p.guess; rc.conf=p.conf;
+  rcProg(failed?'לא הצלחתי לקרוא את הקבלה':'הקבלה נקראה',1);
+  $('rcform').hidden=false;
+  $('rcamt').value=p.best==null?'':String(p.best);
+  $('rcalts').innerHTML=p.alts.map(v=>`<button type="button" class="lb" data-v="${v}">${money2(v)}</button>`).join('');
+  $('rcm').value=p.merchant||'';
+  $('rcd').max=todayStr();
+  $('rcd').value=p.date?p.date.y+'-'+pad(p.date.m)+'-'+pad(p.date.d):todayStr();
+  $('rcc').innerHTML='<option value="">בחרו קטגוריה</option>'+CATS.map(c=>`<option${p.guess&&p.guess.c===c?' selected':''}>${esc(c)}</option>`).join('');
+  const why=[];
+  if(failed) why.push('אפשר למלא את הפרטים ידנית, והתמונה תישמר עם ההוצאה.');
+  else{
+    why.push(p.guess?(p.guess.src==='learned'?`הקטגוריה: ${p.guess.c}, לפי בית עסק שכבר תיעדתם.`:`הקטגוריה: ${p.guess.c}, לפי "${p.guess.hit}" בקבלה.`):'לא זיהיתי את סוג העסק. בחרו קטגוריה.');
+    if(p.conf==='none') why.push('לא זיהיתי סכום. הקלידו אותו לפי התמונה.');
+    else if(p.conf!=='high') why.push('לא בטוחה בסכום, כדאי לבדוק אותו מול התמונה.');
+    if(!p.date) why.push('לא זיהיתי תאריך, נבחר היום.');
+  }
+  $('rcwhy').innerHTML=why.map(esc).join('<br>');
+  rcSync(); rcDupSoon();
+}
+function rcSync(){
+  const a=parseFloat($('rcamt').value),c=$('rcc').value;
+  $('rcsave').textContent=a>0&&c?`שמירה ב${c}, ${money2(a)}`:'שמירה';
+}
+$('rccam').onclick=()=>{if(!rcBusy)$('rcfc').click()};
+$('rcgal').onclick=()=>{if(!rcBusy)$('rcff').click()};
+$('rcfc').addEventListener('change',e=>rcStart(e.target.files[0]));
+$('rcff').addEventListener('change',e=>rcStart(e.target.files[0]));
+$('rcx').onclick=rcClear;
+$('rcamt').addEventListener('input',()=>{clean($('rcamt'));rcSync();rcDupSoon()});
+$('rcc').addEventListener('change',rcSync);
+$('rcd').addEventListener('change',()=>rcDupSoon());
+$('rcalts').addEventListener('click',e=>{const b=e.target.closest('button');if(b){$('rcamt').value=b.dataset.v;rcSync();rcDupSoon()}});
+
+/* אם אותה קנייה כבר תועדה (למשל מחלונית Apple Pay), מציעים לצרף אליה את הקבלה ולא לספור פעמיים */
+const rcDupSoon=(()=>{let t;return()=>{clearTimeout(t);t=setTimeout(rcDup,350)}})();
+async function rcDup(){
+  const box=$('rcdup'),my=++rcSeq0;
+  const a=parseFloat($('rcamt').value),d=$('rcd').value;
+  if(rc) rc.dup=null; box.hidden=true;
+  if(!rc||!sb||!(a>0)||!d) return;
+  const [Y,M,D]=d.split('-').map(Number);
+  const q=await sb.from('tx').select('id,a,c,t,by_name,note').eq('type','e').eq('del',false).is('receipt',null).eq('a',a)
+    .gte('t',new Date(Y,M-1,D-1).getTime()).lt('t',new Date(Y,M-1,D+2).getTime()).order('t',{ascending:false}).limit(3);
+  if(my!==rcSeq0||!rc||q.error||!q.data||!q.data.length) return;
+  rc.dup=q.data;
+  box.innerHTML=q.data.map(x=>{
+    const dt=new Date(Number(x.t)),when=dt.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit'})+' '+dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    return `<div>כבר תועדה הוצאה כזו: <b>${esc(x.c)}, ${money2(Number(x.a))}</b>, ${when}${x.by_name?', על ידי '+esc(x.by_name):''}.<br>אם זו אותה קנייה, צרפו אליה את הקבלה ואל תוסיפו הוצאה נוספת.<br><button class="lb" type="button" data-id="${esc(x.id)}">צירוף הקבלה להוצאה הזו</button></div>`;
+  }).join('<hr style="border:0;border-top:1px solid var(--line);margin:10px 0">');
+  box.hidden=false;
+}
+
+async function rcUpload(){
+  const d=new Date(),id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():Date.now()+'-'+Math.random().toString(16).slice(2);
+  const path=`${d.getFullYear()}-${pad(d.getMonth()+1)}/${id}.jpg`;
+  const {error}=await sb.storage.from('receipts').upload(path,rc.blob,{contentType:'image/jpeg',upsert:false});
+  if(error) throw error;
+  return path;
+}
+let rcSaving=false;
+$('rcsave').onclick=async()=>{
+  if(!rc||rcSaving) return;
+  if(!user){flash('בחרו קודם מי מתעד: דביר או נעמה');return}
+  const a=parseFloat($('rcamt').value),c=$('rcc').value,d=$('rcd').value;
+  if(!(a>0)){flash('הקלידו סכום');return}
+  if(!c){flash('בחרו קטגוריה');return}
+  if(!d){flash('בחרו תאריך');return}
+  const [Y,M,D]=d.split('-').map(Number),isToday=d===todayStr();
+  const merchant=$('rcm').value.trim();
+  rcSaving=true; $('rcsave').disabled=true;
+  let path=null;
+  try{
+    try{path=await rcUpload()}catch(e){flash('לא ניתן להעלות את התמונה. בדקו חיבור לאינטרנט');return}
+    const ok=await addTx({type:'e',a,c,t:isToday?Date.now():new Date(Y,M-1,D,12).getTime(),note:merchant,receipt:path});
+    if(!ok){sb.storage.from('receipts').remove([path]);return}
+    const g=rc.guess,key=(g&&g.hit)||merchant;
+    if(key&&(!g||g.c!==c)) await saveRule(key,c);
+    flash(`נשמרו ${money(a)} ב${c}, עם תמונת הקבלה`,true);
+    rcClear(); loadReceipts();
+  }finally{rcSaving=false;$('rcsave').disabled=false}
+};
+$('rcdup').addEventListener('click',async e=>{
+  const b=e.target.closest('button[data-id]'); if(!b||!rc||rcSaving) return;
+  rcSaving=true; b.disabled=true;
+  let path=null;
+  try{
+    try{path=await rcUpload()}catch(err){flash('לא ניתן להעלות את התמונה. בדקו חיבור לאינטרנט');return}
+    const {error}=await sb.from('tx').update({receipt:path}).eq('id',b.dataset.id);
+    if(error){sb.storage.from('receipts').remove([path]);flash('לא ניתן לצרף את הקבלה. בדקו חיבור לאינטרנט');return}
+    flash('הקבלה צורפה להוצאה הקיימת'); rcClear(); await load(); loadReceipts();
+  }finally{rcSaving=false;b.disabled=false}
+});
+
+/* צפייה בקבלות שנשמרו */
+async function signedUrls(paths){
+  if(!paths.length) return {};
+  const {data,error}=await sb.storage.from('receipts').createSignedUrls(paths,3600);
+  const m={}; if(!error&&data) data.forEach(x=>{if(x.signedUrl)m[x.path]=x.signedUrl});
+  return m;
+}
+async function loadReceipts(){
+  if(!sb||!authed) return;
+  const q=await sb.from('tx').select('id,a,c,t,by_name,note,receipt').not('receipt','is',null).eq('del',false).order('t',{ascending:false}).limit(12);
+  if(q.error){$('rclist').innerHTML='<p class="empty">לא ניתן לטעון את הקבלות</p>';return}
+  const rows=q.data;
+  if(!rows.length){$('rclist').innerHTML='<p class="empty">עוד אין קבלות.</p>';return}
+  const urls=await signedUrls(rows.map(r=>r.receipt));
+  $('rclist').innerHTML=rows.map(r=>{
+    const d=new Date(Number(r.t)),when=d.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit'});
+    const info=`${r.c}, ${money2(Number(r.a))}${r.note?', '+r.note:''}`;
+    return `<div class="rli"><button class="thumb" type="button" data-p="${esc(r.receipt)}" data-i="${esc(info)}" aria-label="פתיחת תמונת הקבלה">${urls[r.receipt]?`<img src="${esc(urls[r.receipt])}" alt="" loading="lazy">`:''}</button><div><b>${esc(r.c)}</b> ${money2(Number(r.a))}<br><small>${esc(r.note||'')}${r.note?', ':''}${when}${r.by_name?', '+esc(r.by_name):''}</small></div></div>`;
+  }).join('');
+}
+$('rclist').addEventListener('click',e=>{const b=e.target.closest('.thumb');if(b)openReceipt(b.dataset.p,b.dataset.i)});
+async function openReceipt(path,info){
+  const u=(await signedUrls([path]))[path];
+  if(!u){flash('לא ניתן לפתוח את התמונה');return}
+  $('rvimg').src=u; $('rvinfo').textContent=info||''; $('rv').hidden=false;
+}
+$('rvx').onclick=()=>{$('rv').hidden=true;$('rvimg').removeAttribute('src')};
 
 /* ---------- login & start ---------- */
 (function(){
