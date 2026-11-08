@@ -256,12 +256,15 @@ small,.hint{color:var(--muted);font-size:.85rem}
   <section class="card" id="rcwork" hidden>
     <div class="pv"><img id="rcimg" alt="תצוגה מקדימה של הקבלה"><div style="flex:1;min-width:0"><b id="rcst">מכין את התמונה...</b><div class="prog"><i id="rcbar"></i></div><small id="rcnote"></small></div></div>
     <div id="rcform" hidden style="margin-top:14px">
+      <small>מי הוציא את הקבלה</small>
+      <div class="seg" id="rcusr" style="margin-top:4px"><button type="button" data-u="דביר" aria-pressed="false">דביר</button><button type="button" data-u="נעמה" aria-pressed="false">נעמה</button></div>
       <small>סכום</small>
       <div class="amt"><span>₪</span><input id="rcamt" type="text" inputmode="decimal" autocomplete="off" aria-label="סכום הקבלה"></div>
       <div class="alts" id="rcalts"></div>
       <small>בית עסק</small>
       <input id="rcm" class="txt" type="text" placeholder="לא חובה" autocomplete="off">
       <div class="fgrid"><div><small>תאריך</small><input id="rcd" class="txt" type="date"></div><div><small>קטגוריה</small><select id="rcc" class="txt"></select></div></div>
+      <div class="dup" id="rcmon" hidden></div>
       <p class="hint" id="rcwhy" style="margin:0 0 12px"></p>
       <div class="dup" id="rcdup" hidden></div>
       <button class="btn main" id="rcsave">שמירה</button>
@@ -284,9 +287,12 @@ small,.hint{color:var(--muted);font-size:.85rem}
 </main>
 
 <div id="rv" class="sheet" hidden role="dialog" aria-modal="true" aria-label="תמונת קבלה"><div class="box">
-  <img id="rvimg" alt="תמונת הקבלה" style="width:100%;border-radius:12px;display:block">
-  <p class="hint" id="rvinfo"></p>
-  <button class="btn" id="rvx" style="width:100%">סגירה</button>
+  <img id="rvimg" alt="תמונת הקבלה" style="width:100%;max-height:50vh;object-fit:contain;background:var(--chip);border-radius:12px;display:block">
+  <p class="hint" style="margin:8px 0 2px"><a id="rvfull" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700">פתיחה בגודל מלא</a></p>
+  <p class="hint" id="rvinfo" style="margin-bottom:6px"></p>
+  <p class="hint" style="margin-top:0">מחיקת התמונה משאירה את ההוצאה ביומן. מחיקת ההוצאה אפשר לשחזר מהיומן.</p>
+  <div class="fgrid"><button class="btn" id="rvimgdel" type="button">מחיקת התמונה בלבד</button><button class="btn" id="rvtxdel" type="button">מחיקת ההוצאה</button></div>
+  <button class="btn" id="rvx" style="width:100%;margin-top:10px">סגירה</button>
 </div></div>
 
 <div id="ap" class="sheet" hidden role="dialog" aria-modal="true" aria-label="תשלום ב-Apple Pay"><div class="box">
@@ -550,7 +556,7 @@ $('igrid').addEventListener('click',e=>{
 $('undo').onclick=()=>{if(last){setDel(last,true);last=null}$('toast').classList.remove('show')};
 function setUser(u){
   user=u; lset('budget-user',u);
-  document.querySelectorAll('#usr button,#apusr button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.u===u));
+  document.querySelectorAll('#usr button,#apusr button,#rcusr button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.u===u));
 }
 $('usr').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setUser(b.dataset.u)});
 
@@ -600,7 +606,7 @@ $('log').addEventListener('click',async e=>{
   const b=e.target.closest('.lb'); if(!b) return;
   const act=b.dataset.act;
   if(act==='edit') return openEdit(b.dataset.id);
-  if(act==='rcp'){const x=tx.find(t=>t.id===b.dataset.id);return openReceipt(b.dataset.p,x?`${x.c}, ${money(x.a)}${x.note?', '+x.note:''}`:'')}
+  if(act==='rcp'){const x=tx.find(t=>t.id===b.dataset.id);return openReceipt(b.dataset.p,x?`${x.c}, ${money(x.a)}${x.note?', '+x.note:''}`:'',b.dataset.id)}
   const del=act==='del';
   if(await setDel(b.dataset.id,del)) flash(del?'התנועה נמחקה ונשארה ביומן. אפשר לשחזר אותה':'התנועה שוחזרה');
 });
@@ -642,7 +648,7 @@ $('apusr').addEventListener('click',e=>{const b=e.target.closest('button');if(b)
 $('apx').onclick=closeAp;
 $('apone').onclick=()=>{if(apSug)apSave(apSug)};
 $('apgrid').addEventListener('click',e=>{const b=e.target.closest('button');if(b)apSave(CATS[+b.dataset.i])});
-addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('rv').hidden)$('rv').hidden=true;else if(!$('ed').hidden)closeEdit();else if(!$('ap').hidden)closeAp()}});
+addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('rv').hidden)closeRv();else if(!$('ed').hidden)closeEdit();else if(!$('ap').hidden)closeAp()}});
 
 /* ---------- settings ---------- */
 const VIEWS={settings:'v-set',more:'v-more',receipts:'v-rc',discount:'v-disc'};
@@ -1009,6 +1015,8 @@ function rcFill(p,failed){
   $('rcm').value=p.merchant||'';
   $('rcd').max=todayStr();
   $('rcd').value=p.date?p.date.y+'-'+pad(p.date.m)+'-'+pad(p.date.d):todayStr();
+  if(user) setUser(user); /* מסמן את מי שמתעד כרגע; אפשר להחליף למטה */
+  rcMon();
   $('rcc').innerHTML='<option value="">בחרו קטגוריה</option>'+CATS.map(c=>`<option${p.guess&&p.guess.c===c?' selected':''}>${esc(c)}</option>`).join('');
   const why=[];
   if(failed) why.push('אפשר למלא את הפרטים ידנית, והתמונה תישמר עם ההוצאה.');
@@ -1032,7 +1040,19 @@ $('rcff').addEventListener('change',e=>rcStart(e.target.files[0]));
 $('rcx').onclick=rcClear;
 $('rcamt').addEventListener('input',()=>{clean($('rcamt'));rcSync();rcDupSoon()});
 $('rcc').addEventListener('change',rcSync);
-$('rcd').addEventListener('change',()=>rcDupSoon());
+$('rcd').addEventListener('change',()=>{rcMon();rcDupSoon()});
+$('rcusr').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setUser(b.dataset.u)});
+/* אם התאריך בקבלה הוא של חודש אחר, ההוצאה לא תופיע ביומן של החודש הנוכחי: אומרים את זה לפני השמירה */
+const monName=(Y,M)=>new Intl.DateTimeFormat('he-IL',{month:'long',year:'numeric',calendar:'gregory'}).format(new Date(Y,M-1,1));
+function rcMon(){
+  const box=$('rcmon'),d=$('rcd').value;
+  if(!d){box.hidden=true;return}
+  const [Y,M,D]=d.split('-').map(Number),n=new Date();
+  if(Y===n.getFullYear()&&M-1===n.getMonth()){box.hidden=true;return}
+  box.innerHTML=`התאריך שנקרא מהקבלה הוא <b>${D}/${M}/${Y}</b>, ולכן ההוצאה תירשם ב<b>${esc(monName(Y,M))}</b> ולא תופיע ביומן של החודש הנוכחי.<br><button class="lb" type="button" data-act="today">להשתמש בתאריך של היום</button>`;
+  box.hidden=false;
+}
+$('rcmon').addEventListener('click',e=>{if(e.target.closest('[data-act="today"]')){$('rcd').value=todayStr();rcMon();rcDupSoon()}});
 $('rcalts').addEventListener('click',e=>{const b=e.target.closest('button');if(b){$('rcamt').value=b.dataset.v;rcSync();rcDupSoon()}});
 
 /* אם אותה קנייה כבר תועדה (למשל מחלונית Apple Pay), מציעים לצרף אליה את הקבלה ולא לספור פעמיים */
@@ -1049,7 +1069,7 @@ async function rcDup(){
   rc.dup=q.data;
   box.innerHTML=q.data.map(x=>{
     const dt=new Date(Number(x.t)),when=dt.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit'})+' '+dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-    return `<div>כבר תועדה הוצאה כזו: <b>${esc(x.c)}, ${money2(Number(x.a))}</b>, ${when}${x.by_name?', על ידי '+esc(x.by_name):''}.<br>אם זו אותה קנייה, צרפו אליה את הקבלה ואל תוסיפו הוצאה נוספת.<br><button class="lb" type="button" data-id="${esc(x.id)}">צירוף הקבלה להוצאה הזו</button></div>`;
+    return `<div>כבר תועדה הוצאה כזו: <b>${esc(x.c)}, ${money2(Number(x.a))}</b>, ${when}${x.by_name?', על ידי '+esc(x.by_name):''}.<br>אם זו אותה קנייה, צרפו אליה את הקבלה ולא תיווסף הוצאה חדשה. אם זו קנייה אחרת, לחצו על השמירה למטה.<br><button class="lb" type="button" data-id="${esc(x.id)}" data-i="${esc(x.c+', '+money2(Number(x.a)))}">צירוף הקבלה להוצאה הזו</button></div>`;
   }).join('<hr style="border:0;border-top:1px solid var(--line);margin:10px 0">');
   box.hidden=false;
 }
@@ -1079,7 +1099,8 @@ $('rcsave').onclick=async()=>{
     if(!ok){sb.storage.from('receipts').remove([path]);return}
     const g=rc.guess,key=(g&&g.hit)||merchant;
     if(key&&(!g||g.c!==c)) await saveRule(key,c);
-    flash(`נשמרו ${money(a)} ב${c}, עם תמונת הקבלה`,true);
+    const now=new Date(),other=!(Y===now.getFullYear()&&M-1===now.getMonth());
+    flash(`נשמרו ${money(a)} ב${c}, עם תמונת הקבלה`+(other?`. התאריך ${D}/${M}/${Y}, ולכן ההוצאה נמצאת ב${monName(Y,M)}`:''),true);
     rcClear(); loadReceipts();
   }finally{rcSaving=false;$('rcsave').disabled=false}
 };
@@ -1091,7 +1112,7 @@ $('rcdup').addEventListener('click',async e=>{
     try{path=await rcUpload()}catch(err){flash('לא ניתן להעלות את התמונה. בדקו חיבור לאינטרנט');return}
     const {error}=await sb.from('tx').update({receipt:path}).eq('id',b.dataset.id);
     if(error){sb.storage.from('receipts').remove([path]);flash('לא ניתן לצרף את הקבלה. בדקו חיבור לאינטרנט');return}
-    flash('הקבלה צורפה להוצאה הקיימת'); rcClear(); await load(); loadReceipts();
+    flash(`הקבלה צורפה להוצאה הקיימת (${b.dataset.i}). לא נוספה הוצאה חדשה`); rcClear(); await load(); loadReceipts();
   }finally{rcSaving=false;b.disabled=false}
 });
 
@@ -1112,16 +1133,36 @@ async function loadReceipts(){
   $('rclist').innerHTML=rows.map(r=>{
     const d=new Date(Number(r.t)),when=d.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit'});
     const info=`${r.c}, ${money2(Number(r.a))}${r.note?', '+r.note:''}`;
-    return `<div class="rli"><button class="thumb" type="button" data-p="${esc(r.receipt)}" data-i="${esc(info)}" aria-label="פתיחת תמונת הקבלה">${urls[r.receipt]?`<img src="${esc(urls[r.receipt])}" alt="" loading="lazy">`:''}</button><div><b>${esc(r.c)}</b> ${money2(Number(r.a))}<br><small>${esc(r.note||'')}${r.note?', ':''}${when}${r.by_name?', '+esc(r.by_name):''}</small></div></div>`;
+    return `<div class="rli"><button class="thumb" type="button" data-p="${esc(r.receipt)}" data-id="${esc(r.id)}" data-i="${esc(info)}" aria-label="פתיחת תמונת הקבלה">${urls[r.receipt]?`<img src="${esc(urls[r.receipt])}" alt="" loading="lazy">`:''}</button><div><b>${esc(r.c)}</b> ${money2(Number(r.a))}<br><small>${esc(r.note||'')}${r.note?', ':''}${when}${r.by_name?', '+esc(r.by_name):''}</small></div></div>`;
   }).join('');
 }
-$('rclist').addEventListener('click',e=>{const b=e.target.closest('.thumb');if(b)openReceipt(b.dataset.p,b.dataset.i)});
-async function openReceipt(path,info){
+$('rclist').addEventListener('click',e=>{const b=e.target.closest('.thumb');if(b)openReceipt(b.dataset.p,b.dataset.i,b.dataset.id)});
+let rvCur=null,rvArm=false,rvTimer=null;
+function rvReset(){clearTimeout(rvTimer);rvArm=false;$('rvimgdel').textContent='מחיקת התמונה בלבד'}
+function closeRv(){$('rv').hidden=true;$('rvimg').removeAttribute('src');rvCur=null;rvReset()}
+async function openReceipt(path,info,id){
   const u=(await signedUrls([path]))[path];
   if(!u){flash('לא ניתן לפתוח את התמונה');return}
-  $('rvimg').src=u; $('rvinfo').textContent=info||''; $('rv').hidden=false;
+  rvCur={path,id}; rvReset(); $('toast').classList.remove('show');
+  $('rvimg').src=u; $('rvfull').href=u; $('rvinfo').textContent=info||''; $('rv').hidden=false;
 }
-$('rvx').onclick=()=>{$('rv').hidden=true;$('rvimg').removeAttribute('src')};
+$('rvx').onclick=closeRv;
+/* מחיקת התמונה בלבד: הלחיצה הראשונה רק מבקשת אישור, כי אי אפשר לשחזר תמונה שנמחקה */
+$('rvimgdel').onclick=async()=>{
+  if(!rvCur||!rvCur.id) return;
+  if(!rvArm){rvArm=true;$('rvimgdel').textContent='לחצו שוב: התמונה תימחק';rvTimer=setTimeout(rvReset,4000);return}
+  const cur=rvCur; rvReset();
+  const {error}=await sb.from('tx').update({receipt:null}).eq('id',cur.id);
+  if(error){flash('לא ניתן למחוק. בדקו חיבור לאינטרנט');return}
+  sb.storage.from('receipts').remove([cur.path]);
+  closeRv(); flash('התמונה נמחקה. ההוצאה נשארה ביומן'); await load(); loadReceipts();
+};
+/* מחיקת ההוצאה: אותה מחיקה רכה כמו ביומן, אפשר לשחזר משם והתמונה חוזרת איתה */
+$('rvtxdel').onclick=async()=>{
+  if(!rvCur||!rvCur.id) return;
+  const cur=rvCur;
+  if(await setDel(cur.id,true)){closeRv();flash('ההוצאה נמחקה ונשארה ביומן. אפשר לשחזר אותה משם');loadReceipts()}
+};
 
 /* ---------- login & start ---------- */
 (function(){
