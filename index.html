@@ -121,7 +121,7 @@ small,.hint{color:var(--muted);font-size:.85rem}
 .sv{color:var(--accent)}
 .vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
 .pv{display:flex;gap:12px;align-items:flex-start}
-.pv img{width:84px;height:110px;object-fit:cover;border-radius:10px;border:1px solid var(--line);flex:none;background:var(--chip)}
+.pv img{width:84px;height:110px;object-fit:cover;object-position:top;border-radius:10px;border:1px solid var(--line);flex:none;background:var(--chip);cursor:zoom-in}
 .prog{height:8px;border-radius:99px;background:var(--chip);overflow:hidden;margin:8px 0 6px}
 .prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
 .alts{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
@@ -135,6 +135,7 @@ small,.hint{color:var(--muted);font-size:.85rem}
 .it td{padding:0 2px 6px;vertical-align:middle}
 .it input{width:100%;min-width:0;font:500 1rem 'Heebo',sans-serif;color:var(--ink);background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:7px 6px;text-overflow:ellipsis}
 .it input:focus{outline:0;border-color:var(--accent)}
+.it input[data-f="price"]:placeholder-shown{border-color:var(--bad)}
 .it input[data-f="qty"],.it input[data-f="price"]{direction:ltr;text-align:center}
 .it .x{padding:6px 0;width:100%;line-height:1}
 .it tr.cm td{padding:0 4px 8px;font-size:.8rem;line-height:1.35}
@@ -167,6 +168,32 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 #v-login{padding-top:12vh}
 .sheet{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:20}
 .sheet .box{width:100%;max-width:480px;max-height:92vh;overflow:auto;background:var(--card);border-radius:22px 22px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+.scan{position:fixed;top:0;left:0;right:0;bottom:0;z-index:30;background:#0b111c;color:#fff;display:flex;flex-direction:column;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px);touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.sct{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px}
+.sct b{font-size:1.05rem;font-weight:700}
+.sbt{font:500 .92rem 'Heebo',sans-serif;color:#fff;background:rgba(255,255,255,.14);border:0;border-radius:12px;padding:10px 14px;min-height:44px;cursor:pointer}
+.sbt:focus-visible{outline:2px solid #2dd4bf;outline-offset:2px}
+.sbt.go{background:#2dd4bf;color:#06201d;font-weight:700;font-size:1.02rem}
+.scst{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.scwrap{position:relative;flex:none;direction:ltr}
+.scwrap canvas{display:block;width:100%;height:100%}
+.scwrap svg{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+#scdim{fill:rgba(6,10,18,.62);fill-rule:evenodd}
+#scpoly{fill:none;stroke:#2dd4bf;stroke-width:2.5;stroke-linejoin:round}
+#scpoly.bad{stroke:#f0746b}
+.sch{position:absolute;width:48px;height:48px;margin:-24px 0 0 -24px;touch-action:none;cursor:grab}
+.sch::after{content:"";position:absolute;top:13px;left:13px;right:13px;bottom:13px;border-radius:50%;background:#fff;border:3px solid #2dd4bf;box-shadow:0 1px 6px rgba(0,0,0,.55)}
+.sch.e::after{top:19px;bottom:19px;left:9px;right:9px;border-radius:6px;border-width:2px}
+.sch.on::after{background:#2dd4bf;border-color:#fff}
+.sclupe{position:absolute;top:10px;width:124px;height:124px;border-radius:50%;border:3px solid #fff;box-shadow:0 4px 18px rgba(0,0,0,.6);pointer-events:none;background:#0b111c}
+.scmsg{margin:0;padding:8px 18px 2px;text-align:center;font-size:.9rem;line-height:1.35;color:#c9d3e4;min-height:3.1em}
+.scbar{display:flex;gap:8px;padding:8px 14px 14px}
+.scbar .sbt{flex:1}
+.scbar .sbt.go{flex:1.3}
+.zv{touch-action:auto}
+.zvs{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;background:#fff}
+.zvs img{display:block;width:100%;height:auto;cursor:zoom-in}
+.zv.big .zvs img{width:260%;cursor:zoom-out}
 #toast{position:fixed;z-index:30;inset:auto 0 0 0;display:none;justify-content:center;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
 #toast.show{display:flex}
 #toast div{display:flex;gap:14px;align-items:center;background:var(--ink);color:var(--bg);border-radius:14px;padding:12px 16px;font-size:.95rem}
@@ -286,14 +313,14 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
   <div class="top" style="margin-bottom:16px"><h1>קבלות</h1><button class="pill" id="rcback">חזרה</button></div>
   <section class="card">
     <h2>הוספת קבלה</h2>
-    <p class="hint" style="margin:0 0 12px">מצלמים או בוחרים תמונה של קבלה. האפליקציה קוראת את הסכום, התאריך, בית העסק ופירוט הפריטים, מציעה קטגוריה ושומרת את ההוצאה יחד עם התמונה.</p>
+    <p class="hint" style="margin:0 0 12px">מצלמים או בוחרים תמונה של קבלה. הסורק מסמן את הקבלה, מבודד אותה מהרקע, מיישר ומחדד אותה. מהסריקה האפליקציה קוראת את הסכום, התאריך, בית העסק ופירוט הפריטים, מציעה קטגוריה ושומרת את ההוצאה יחד עם הסריקה.</p>
     <div class="fgrid"><button class="btn main" id="rccam">צילום קבלה</button><button class="btn" id="rcgal">בחירה מהגלריה</button></div>
     <input class="vh" id="rcfc" type="file" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true">
     <input class="vh" id="rcff" type="file" accept="image/*" tabindex="-1" aria-hidden="true">
     <p class="hint" style="margin:10px 0 0">הקריאה נעשית בתוך המכשיר, והתמונה נשמרת באחסון הפרטי של הפרויקט שלכם. בפעם הראשונה יורד מנוע הקריאה (כ-8MB).</p>
   </section>
   <section class="card" id="rcwork" hidden>
-    <div class="pv"><img id="rcimg" alt="תצוגה מקדימה של הקבלה"><div style="flex:1;min-width:0"><b id="rcst">מכין את התמונה...</b><div class="prog"><i id="rcbar"></i></div><small id="rcnote"></small></div></div>
+    <div class="pv"><img id="rcimg" alt="הסריקה של הקבלה. לחיצה פותחת אותה בגודל מלא"><div style="flex:1;min-width:0"><b id="rcst">מכין את התמונה...</b><div class="prog"><i id="rcbar"></i></div><small id="rcnote"></small><button class="lb" id="rcrescan" type="button" hidden style="display:block;margin-top:8px">תיקון הסריקה</button></div></div>
     <div id="rcform" hidden style="margin-top:14px">
       <small>מי הוציא את הקבלה</small>
       <div class="seg" id="rcusr" style="margin-top:4px"><button type="button" data-u="דביר" aria-pressed="false">דביר</button><button type="button" data-u="נעמה" aria-pressed="false">נעמה</button></div>
@@ -348,8 +375,19 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 </div>
 </main>
 
+<div id="sc" class="scan" hidden role="dialog" aria-modal="true" aria-label="סריקת קבלה">
+  <div class="sct"><button class="sbt" id="scx" type="button">ביטול</button><b>סריקת קבלה</b><button class="sbt" id="scrot" type="button" aria-label="סיבוב התמונה ברבע סיבוב">סיבוב</button></div>
+  <div class="scst" id="scstage"><div class="scwrap" id="scwrap"><svg id="scsvg" aria-hidden="true"><path id="scdim"/><path id="scpoly"/></svg></div><canvas id="sclupe" class="sclupe" hidden aria-hidden="true"></canvas></div>
+  <p class="scmsg" id="scmsg" aria-live="polite"></p>
+  <div class="scbar"><button class="sbt go" id="scok" type="button">סריקה</button><button class="sbt" id="scauto" type="button">זיהוי אוטומטי</button><button class="sbt" id="scall" type="button">כל התמונה</button></div>
+</div>
+<div id="zv" class="scan zv" hidden role="dialog" aria-modal="true" aria-label="הקבלה בגודל מלא">
+  <div class="sct"><button class="sbt" id="zvx" type="button">סגירה</button><b>הקבלה</b><button class="sbt" id="zvz" type="button">הגדלה</button></div>
+  <div class="zvs" id="zvs"><img id="zvimg" alt="הקבלה בגודל מלא"></div>
+</div>
+
 <div id="rv" class="sheet" hidden role="dialog" aria-modal="true" aria-label="תמונת קבלה"><div class="box">
-  <img id="rvimg" alt="תמונת הקבלה" style="width:100%;max-height:50vh;object-fit:contain;background:var(--chip);border-radius:12px;display:block">
+  <img id="rvimg" alt="תמונת הקבלה. לחיצה פותחת אותה בגודל מלא" style="width:100%;max-height:50vh;object-fit:contain;background:var(--chip);border-radius:12px;display:block;cursor:zoom-in">
   <p class="hint" style="margin:8px 0 2px"><a id="rvfull" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700">פתיחה בגודל מלא</a></p>
   <p class="hint" id="rvinfo" style="margin-bottom:6px"></p>
   <div class="itbox">
@@ -729,7 +767,7 @@ $('apusr').addEventListener('click',e=>{const b=e.target.closest('button');if(b)
 $('apx').onclick=closeAp;
 $('apone').onclick=()=>{if(apSug)apSave(apSug)};
 $('apgrid').addEventListener('click',e=>{const b=e.target.closest('button');if(b)apSave(CATS[+b.dataset.i])});
-addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('rv').hidden)closeRv();else if(!$('ed').hidden)closeEdit();else if(!$('ap').hidden)closeAp()}});
+addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('zv').hidden)zvClose();else if(!$('sc').hidden)$('scx').click();else if(!$('rv').hidden)closeRv();else if(!$('ed').hidden)closeEdit();else if(!$('ap').hidden)closeAp()}});
 
 /* ---------- settings ---------- */
 const VIEWS={settings:'v-set',more:'v-more',receipts:'v-rc',discount:'v-disc',prices:'v-pr'};
@@ -916,7 +954,7 @@ function catGuess(text){
 function parseReceipt(raw){
   const text=normOcr(raw);
   const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
-  const TOTAL=new RegExp(PAYWORD.source+'|לתשלום|סה\\W{0,2}כ|סך\\s*הכל|סכום|total|amount\\s*due|to\\s*pay|balance\\s*due|grand','i');
+  const TOTAL=TOTALWORD;
   const STRONG=new RegExp(PAYWORD.source+'|לתשלום|total|amount\\s*due|to\\s*pay|balance\\s*due','i');
   const PAY=/אשראי|ויזה|visa|מאסטר|master|כרטיס|דביט|אמצעי\s*תשלום|credit|card|שולם/i;
   const VAT=/מע\W{0,2}מ|vat|tax/i;
@@ -961,7 +999,11 @@ function parseReceipt(raw){
     const c=lines[i].replace(/[|:;_~=*#<>\[\]{}]+/g,' ').replace(/\s+/g,' ').trim();
     if(((c.match(/[A-Za-zא-ת]/g)||[]).length>=3)&&!NOTNAME.test(c)) merchant=c.slice(0,40);
   }
-  const guess=catGuess(text);
+  /* רשת מוכרת: בראש הקבלה (גם אם נקראה עם טעות קטנה), ואם לא נמצאה שם, בכל הקבלה (רק התאמה מדויקת).
+     כשהשורה הראשונה לא מכילה את שם הרשת כמו שהוא, שם הרשת מחליף אותה */
+  const head=storeIn(lines.slice(0,12).join('\n')),any=head||storeIn(text),chain=head||(any&&any.exact?any:null);
+  if(chain){const m=storeIn(merchant);if(!(m&&m.exact&&m.n===chain.n)) merchant=chain.n}
+  const guess=catGuess(text)||(chain?catGuess(chain.n):null);
   if(!merchant&&guess) merchant=guess.hit;
   return {best:best?best.v:null,alts,conf,date,merchant,guess};
 }
@@ -975,16 +1017,29 @@ const STORES=[
  ['סופר יודה',['סופר יודה']],['שוק העיר',['שוק העיר']],['זול ובגדול',['זול ובגדול']],['נתיב החסד',['נתיב החסד']],
  ['מחסני השוק',['מחסני השוק']],['AM:PM',['ampm','=אמפם']]
 ];
-/* שם הרשת כפי שיוצג וישמש להשוואה: מהמילון, ואם אין, שתי המילים הראשונות של שם בית העסק */
-function storeOf(merchant){
-  const t=String(merchant||''),sq=squash(t),tk=new Set(tokensOf(t));
+/* רשת מוכרת בתוך טקסט שנקרא מקבלה. סובל טעויות קריאה נפוצות: י' שנקראה כגרש, ובשם ארוך גם אות אחת שגויה או חסרה */
+function storeIn(text){
+  const raw=String(text||''),v1=squash(raw),v2=squash(raw.replace(/([א-ת])['׳’‘´`]/g,'$1י')),tk=new Set(tokensOf(raw));
   let best=null;
   STORES.forEach(([n,kws])=>kws.forEach(kw=>{
     const only=kw[0]==='=',w=only?kw.slice(1):kw,q=squash(w);
-    const ok=only||q.length<4?tk.has(w.toLowerCase()):sq.includes(q);
-    if(ok&&(!best||q.length>best.len)) best={n,len:q.length};
+    const exact=only||q.length<4?tk.has(w.toLowerCase()):v1.includes(q);
+    let ok=exact||(!only&&q.length>=4&&v2.includes(q));
+    if(!ok&&!only&&q.length>=6){
+      for(const v of [v1,v2]){
+        for(let i=0;i+q.length<=v.length&&!ok;i++){let d=0;for(let j=0;j<q.length&&d<2;j++)if(v.charCodeAt(i+j)!==q.charCodeAt(j))d++;if(d<2)ok=true}
+        for(let j=1;j<q.length-1&&!ok;j++)if(v.includes(q.slice(0,j)+q.slice(j+1)))ok=true;
+        if(ok) break;
+      }
+    }
+    if(ok&&(!best||(exact&&!best.exact)||(exact===best.exact&&q.length>best.len))) best={n,len:q.length,exact};
   }));
-  if(best) return best.n;
+  return best;
+}
+/* שם הרשת כפי שיוצג וישמש להשוואה: מהמילון, ואם אין, שתי המילים הראשונות של שם בית העסק */
+function storeOf(merchant){
+  const t=String(merchant||''),b=storeIn(t);
+  if(b) return b.n;
   const ws=tokensOf(t).filter(w=>/[a-zא-ת]/.test(w)&&w.length>1).slice(0,2);
   return ws.join(' ').slice(0,24);
 }
@@ -1042,12 +1097,16 @@ function nameSim(a,b){
 function normOcr(raw){
   let t=String(raw||'').replace(BIDI,'').replace(/[״”“]/g,'"').replace(/[׳’‘´`]/g,"'")
     .replace(/(\d)\s+([.,])\s*(\d{2})(?!\d)/g,'$1$2$3').replace(/(\d)\s*([.,])\s+(\d{2})(?!\d)/g,'$1$2$3');
+  /* גרש בתחילת מילה הוא י' שנקראה לא נכון ("'חידה") */
+  t=t.replace(/(^|[\s(])['׳](?=[א-ת]{2})/gm,'$1י');
   /* אותיות מרווחות ("ל ת ש ל ו ם") הופכות למילה אחת */
   t=t.replace(/(^|[\s:|])((?:[א-ת] ){2,}[א-ת])(?=$|[\s:|.])/gm,(m,a,w)=>a+w.replace(/ /g,''));
   return t;
 }
 /* "לתשלום" גם כשהקריאה הוסיפה רווחים או אות אחת מיותרת */
 const PAYWORD=/ל\s*ת\s*ש\s*ל\s*(?:ו\s*)?(?:ר\s*)?ם/;
+/* מילים שמסמנות שורת סיכום */
+const TOTALWORD=new RegExp(PAYWORD.source+'|לתשלום|סה\\W{0,2}כ|סך\\s*הכל|סכום|total|amount\\s*due|to\\s*pay|balance\\s*due|grand','i');
 
 /* --- פענוח שורות פריטים מהטקסט שהקריאה החזירה ---
    תומך בכמה מבנים: "שם מחיר", "שם ברקוד מחיר" (רמי לוי), שורת כמות "2 × 5.90" או "x 9.90 2 יחידה 19.80",
@@ -1127,7 +1186,8 @@ function parseItems(raw,total){
     }
     /* אחרת (ספרה אחת נקראה לא נכון, או שחסר מספר): מזהים לפי צורת המספר */
     const ws=toks.filter(isW),ps=toks.filter(isP),is=toks.filter(isI);
-    let Q=ws.length?val(ws[0]):is.length?val(is[0]):null;
+    const mu=new RegExp("(\\d{1,3})\\s*(?:"+UNITW+")","i").exec(ln); /* המספר שצמוד למילת היחידה הוא הכמות */
+    let Q=ws.length?val(ws[0]):mu&&is.indexOf(mu[1])>=0?val(mu[1]):is.length?val(is[0]):null;
     if(Q==null||!(Q>0)) return null;
     if(ps.length===0) return null;
     let U=null,T;
@@ -1175,6 +1235,11 @@ function parseItems(raw,total){
   }
   const items=[];let pending=null,lastIdx=-9,count=null;
   const r2=n=>Math.round(n*100)/100;
+  /* קבלה שבה לכל מוצר יש ברקוד (רמי לוי ודומיו). שם: שורה עם ברקוד היא תמיד מוצר, גם כשהמחיר שלה לא נקרא,
+     ושורה עם מחיר ובלי ברקוד מיד מתחת למוצר היא ההנחה שלו */
+  const CODE=/\b\d{12,14}\b/,codeLayout=lines.filter(l=>CODE.test(l)&&hebs(l)>=2).length>=5,DEPOSIT=/פי?קדון|deposit/i;
+  /* שם של מוצר שנשאר בלי מחיר: נכנס לטבלה עם מחיר ריק, כדי שיהיה ברור שצריך להשלים אותו */
+  const flush=()=>{if(pending&&pending.code&&codeLayout&&items.length<120){items.push({name:pending.name,qty:1,price:null,miss:true});lastIdx=pending.i}pending=null};
   for(let i=0;i<lines.length;i++){
     let ln=lines[i];
     /* "סה"כ פריטים: 6" (גם כשהמילה "פריטים" נקראה עם טעות) */
@@ -1187,7 +1252,11 @@ function parseItems(raw,total){
       if(pending&&pending.name){items.push({name:pending.name,qty:qs.q,price:qs.t});lastIdx=i}
       else{
         const prev=items[items.length-1];
-        if(prev&&!prev.disc&&lastIdx===i-1&&Math.abs(prev.price+(prev.off||0)-qs.t)<=0.06) prev.qty=qs.q;
+        if(prev&&!prev.disc&&lastIdx===i-1){
+          if(Math.abs(prev.price+(prev.off||0)-qs.t)<=0.06){prev.qty=qs.q;lastIdx=i}
+          /* בשורת השם נקרא המחיר ליחידה, והסכום נמצא בשורת הכמות */
+          else if(!prev.off&&Math.abs(prev.price*qs.q-qs.t)<=Math.max(0.06,qs.t*0.006)){prev.price=qs.t;prev.qty=qs.q;lastIdx=i}
+        }
       }
       pending=null;continue;
     }
@@ -1196,16 +1265,17 @@ function parseItems(raw,total){
     const ln2=stripLead(ln);
     const pr=endPrice(ln2)||startPrice(ln2)||anyPrice(ln);
     if(!pr){
-      if(STOP.test(ln)){pending=null;continue}
+      if(STOP.test(ln)){flush();continue}
       if(qtyParse(ln)) continue;                           /* שורת כמות בלי סכום: מתעלמים, השם ממתין */
       if(letters(ln)===0) continue;                        /* ברקוד או רעש: לא מבטל שם שממתין */
-      if(hebs(ln)>=2) pending={name:cleanPending(ln)};     /* שם בלי מחיר: המחיר בשורה הבאה */
+      if(hebs(ln)>=2){flush();pending={name:cleanPending(ln),code:CODE.test(ln),i}} /* שם בלי מחיר: המחיר בשורה הבאה */
       continue;
     }
     const v=pr.v,rest=pr.rest;
-    if(STOP.test(ln)&&!DISC.test(ln)&&v>0){pending=null;continue}
+    if(STOP.test(ln)&&!DISC.test(ln)&&v>0){flush();continue}
     /* הנחה: מינוס בסוף או מילת הנחה. נצמדת לפריט שמעליה, אחרת נשארת שורה נפרדת */
     if(v<0||DISC.test(ln)){
+      flush();
       const amt=Math.abs(v),prev=items[items.length-1];
       if(amt>0){
         if(prev&&!prev.disc&&lastIdx===i-1&&!GENERAL.test(ln)&&amt<prev.price){prev.price=r2(prev.price-amt);prev.off=r2((prev.off||0)+amt)}
@@ -1213,7 +1283,7 @@ function parseItems(raw,total){
       }
       pending=null;continue;
     }
-    if(v<=0||v>=5000){pending=null;continue}
+    if(v<=0||v>=5000){flush();continue}
     const ql=qtyParse(rest);
     if(ql||letters(rest)===0){
       const q=ql?pickQty(ql):1;
@@ -1228,13 +1298,25 @@ function parseItems(raw,total){
     /* כמות בתוך השם רק בקצה שלו ("לימונדה x2", "2x לימונדה"): באמצע השם זו כנראה טעות קריאה */
     const q1=/\s[xX×*]\s?(\d{1,2})$/.exec(name)||/^(\d{1,2})\s?[xX×*]\s/.exec(name);
     if(q1){qty=+q1[1];name=cleanName(name.replace(q1[0],' '))}
-    if(letters(name)<2){pending=null;continue}
-    items.push({name,qty:qty>0?qty:1,price:v});lastIdx=i;pending=null;
+    /* בקבלה עם ברקודים: שם מוצר שממתין למחיר, ומתחתיו שורה עם מחיר ובלי ברקוד. זו שורת הכמות והסכום שלו, גם אם מילת היחידה נקראה לא נכון */
+    if(pending&&pending.code&&codeLayout&&pending.i===i-1&&!CODE.test(ln)){
+      const nn=(rest.match(/(?:^|\s)(\d{1,2})(?=\s|$)/g)||[]).map(s=>+s.trim()).filter(n=>n>=1);
+      items.push({name:pending.name,qty:nn.length===1?nn[0]:1,price:v});lastIdx=i;pending=null;continue;
+    }
+    if(letters(name)<2){flush();continue}
+    flush();
+    /* בקבלה עם ברקודים: מחיר בלי ברקוד מיד מתחת למוצר הוא ההנחה שלו, גם כשסימן המינוס לא נקרא */
+    if(codeLayout&&!/\b\d{5,}\b/.test(ln)&&!DEPOSIT.test(ln)){
+      const prev=items[items.length-1];
+      if(prev&&!prev.disc&&prev.price>0&&lastIdx===i-1&&v<prev.price){prev.price=r2(prev.price-v);prev.off=r2((prev.off||0)+v);continue}
+    }
+    items.push({name,qty:qty>0?qty:1,price:v});lastIdx=i;
     if(items.length>=120) break;
   }
+  flush();
   /* שורת הסכום הסופי שנקראה בטעות כפריט (כשהמילה "סה"כ" או "סוף הזמנה" לא נקראה): מוחקים אותה ואת מה שאחריה */
-  if(total>0){const j=items.findIndex((x,k)=>k>=1&&!x.disc&&Math.abs(x.price-total)<0.005);if(j>=1) items.length=j}
-  const sum=r2(items.reduce((s,x)=>s+x.price,0));
+  if(total>0){const j=items.findIndex((x,k)=>k>=1&&!x.disc&&x.price!=null&&Math.abs(x.price-total)<0.005);if(j>=1) items.length=j}
+  const sum=r2(items.reduce((s,x)=>s+(x.price||0),0));
   return {items,sum,count};
 }
 
@@ -1338,7 +1420,7 @@ function ItemsBox(root,opt){
   const dirty=v=>{if(opt.onChange)opt.onChange(v)};
   const model=x=>({name:String(x.name||''),qty:(x.qty>0&&x.qty!==1)?String(x.qty):'1',price:x.price==null||isNaN(x.price)?'':(+x.price).toFixed(2),disc:!!x.disc});
   function draw(){
-    tb.innerHTML=rows.map((r,i)=>`<tr class="r" data-i="${i}"><td><input data-f="name" dir="auto" value="${esc(r.name)}" autocomplete="off" aria-label="שם הפריט"></td><td><input data-f="qty" inputmode="decimal" value="${esc(r.qty)}" autocomplete="off" aria-label="כמות"></td><td><input data-f="price" inputmode="decimal" value="${esc(r.price)}" autocomplete="off" aria-label="מחיר"></td><td><button type="button" class="lb x" aria-label="מחיקת השורה">×</button></td></tr><tr class="cm" data-i="${i}" hidden><td colspan="4"></td></tr>`).join('');
+    tb.innerHTML=rows.map((r,i)=>`<tr class="r" data-i="${i}"><td><input data-f="name" dir="auto" value="${esc(r.name)}" autocomplete="off" aria-label="שם הפריט"></td><td><input data-f="qty" inputmode="decimal" value="${esc(r.qty)}" autocomplete="off" aria-label="כמות"></td><td><input data-f="price" inputmode="decimal" value="${esc(r.price)}" placeholder="?" autocomplete="off" aria-label="מחיר"></td><td><button type="button" class="lb x" aria-label="מחיקת השורה">×</button></td></tr><tr class="cm" data-i="${i}" hidden><td colspan="4"></td></tr>`).join('');
     tbl.hidden=!rows.length;
     emp.hidden=!!rows.length; emp.textContent=opt.emptyText||'לא נמצאו פריטים.';
   }
@@ -1461,7 +1543,7 @@ async function renderPrices(){
   }
 }
 
-/* --- הכנת התמונה לקריאה: גווני אפור, תיקון צל ותאורה לא אחידה, מתיחת ניגודיות --- */
+/* --- פתיחת קובץ תמונה --- */
 function loadImg(file){
   return new Promise((res,rej)=>{
     const url=URL.createObjectURL(file),im=new Image();
@@ -1470,128 +1552,351 @@ function loadImg(file){
     im.src=url;
   });
 }
-function toCanvas(img,max){
-  const w0=img.naturalWidth||img.width,h0=img.naturalHeight||img.height,k=Math.min(1,max/Math.max(w0,h0));
-  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(w0*k));c.height=Math.max(1,Math.round(h0*k));
-  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);
-  return c;
-}
-function prepOcr(src){
-  const w=src.width,h=src.height,n=w*h;
-  const d=src.getContext('2d').getImageData(0,0,w,h),p=d.data;
-  const g=new Float32Array(n);
-  for(let i=0,j=0;i<n;i++,j+=4) g[i]=0.299*p[j]+0.587*p[j+1]+0.114*p[j+2];
-  /* רקע (צבע הנייר): עותק קטן, "הסרת" כתב בעזרת מקסימום מקומי, טשטוש, והגדלה חזרה */
-  const sw=Math.max(8,Math.round(w/8)),sh=Math.max(8,Math.round(h/8));
-  const sc=document.createElement('canvas');sc.width=sw;sc.height=sh;
-  const sx=sc.getContext('2d');sx.imageSmoothingQuality='high';sx.drawImage(src,0,0,sw,sh);
-  const sp=sx.getImageData(0,0,sw,sh).data;
-  let s=new Float32Array(sw*sh);
-  for(let i=0,j=0;i<s.length;i++,j+=4) s[i]=0.299*sp[j]+0.587*sp[j+1]+0.114*sp[j+2];
-  const blur=(a,r)=>{ /* טשטוש קופסה מופרד, פעמיים */
-    for(let it=0;it<2;it++){
-      const t=new Float32Array(a.length);
-      for(let y=0;y<sh;y++){let acc=0,cnt=0;const o=y*sw;for(let x=-r;x<sw;x++){const a1=x+r,a0=x-r-1;if(a1<sw){acc+=a[o+a1];cnt++}if(a0>=0){acc-=a[o+a0];cnt--}if(x>=0)t[o+x]=acc/cnt}}
-      const u=new Float32Array(a.length);
-      for(let x=0;x<sw;x++){let acc=0,cnt=0;for(let y=-r;y<sh;y++){const a1=y+r,a0=y-r-1;if(a1<sh){acc+=t[a1*sw+x];cnt++}if(a0>=0){acc-=t[a0*sw+x];cnt--}if(y>=0)u[y*sw+x]=acc/cnt}}
-      a=u;
-    }
-    return a;
-  };
-  const dil=(a,r)=>{const t=new Float32Array(a.length);for(let y=0;y<sh;y++)for(let x=0;x<sw;x++){let m=0;for(let yy=Math.max(0,y-r);yy<=Math.min(sh-1,y+r);yy++)for(let xx=Math.max(0,x-r);xx<=Math.min(sw-1,x+r);xx++){const v=a[yy*sw+xx];if(v>m)m=v}t[y*sw+x]=m}return t};
-  s=blur(dil(s,2),Math.max(2,Math.round(Math.max(sw,sh)/12)));
-  const hist=new Uint32Array(256),out=new Float32Array(n);
-  for(let y=0;y<h;y++){
-    const fy=Math.min(sh-1.001,Math.max(0,(y+.5)*sh/h-.5)),y0=Math.floor(fy),ty=fy-y0;
-    for(let x=0;x<w;x++){
-      const fx=Math.min(sw-1.001,Math.max(0,(x+.5)*sw/w-.5)),x0=Math.floor(fx),tx_=fx-x0,i0=y0*sw+x0;
-      const bg=(s[i0]*(1-tx_)+s[i0+1]*tx_)*(1-ty)+(s[i0+sw]*(1-tx_)+s[i0+sw+1]*tx_)*ty;
-      const v=Math.min(255,g[y*w+x]/Math.max(bg,1)*235);
-      out[y*w+x]=v;hist[v|0]++;
-    }
-  }
-  let lo=0,hi=255,acc=0;
-  for(let i=0;i<256;i++){acc+=hist[i];if(acc>=n*0.01){lo=i;break}}
-  acc=0;for(let i=255;i>=0;i--){acc+=hist[i];if(acc>=n*0.01){hi=i;break}}
-  if(hi-lo<30){lo=0;hi=255}
-  const k=255/(hi-lo);
-  for(let i=0,j=0;i<n;i++,j+=4){const v=Math.max(0,Math.min(255,(out[i]-lo)*k));p[j]=p[j+1]=p[j+2]=v;p[j+3]=255}
-  const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').putImageData(d,0,0);
-  return c;
-}
 
-/* --- חיתוך הקבלה מתוך הצילום (הרקע של שולחן או יד), יישור הטיה והגדלה לגודל שנוח לקריאה --- */
-function cropPaper(src){
-  const w=src.width,h=src.height,k=Math.min(1,320/Math.max(w,h));
-  const sw=Math.max(8,Math.round(w*k)),sh=Math.max(8,Math.round(h*k));
-  const c=document.createElement('canvas');c.width=sw;c.height=sh;
-  const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(src,0,0,sw,sh);
-  const p=x.getImageData(0,0,sw,sh).data,n=sw*sh,g=new Uint8Array(n),hist=new Uint32Array(256);
-  for(let i=0,j=0;i<n;i++,j+=4){const v=Math.round(0.299*p[j]+0.587*p[j+1]+0.114*p[j+2]);g[i]=v;hist[v]++}
-  /* סף אוטסו: הנייר הבהיר מול הרקע */
+/* ---------- סורק קבלות: זיהוי הקבלה בצילום, יישור, הלבנת הרקע וחידוד ---------- */
+/* משחרר את הזיכרון של קנבס שסיימנו איתו (בטלפון הזיכרון לקנבסים מוגבל, והדפדפן לא תמיד ממהר לפנות אותו) */
+const freeCv=c=>{try{if(c&&c.getContext){c.width=1;c.height=1}}catch(e){}};
+const SC_FULL=()=>[[0,0],[1,0],[1,1],[0,1]];
+/* התמונה כפי שהיא מוצגת (אחרי סיבוב של 0/90/180/270 מעלות), מוקטנת לצורך תצוגה וזיהוי */
+function scView(img,rot,max){
+  const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height,q=rot%180!==0;
+  const vw=q?ih:iw,vh=q?iw:ih,k=Math.min(1,max/Math.max(vw,vh));
+  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(vw*k));c.height=Math.max(1,Math.round(vh*k));
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.imageSmoothingQuality='high';
+  x.translate(c.width/2,c.height/2);x.rotate(rot*Math.PI/180);
+  const dw=q?c.height:c.width,dh=q?c.width:c.height;
+  x.drawImage(img,-dw/2,-dh/2,dw,dh);
+  return c;
+}
+/* נקודה בתצוגה (0..1) -> פיקסל בתמונת המקור */
+function scToSrc(p,rot,iw,ih){
+  const vx=p[0],vy=p[1];
+  if(rot===90) return [vy*iw,(1-vx)*ih];
+  if(rot===180) return [(1-vx)*iw,(1-vy)*ih];
+  if(rot===270) return [(1-vy)*iw,vx*ih];
+  return [vx*iw,vy*ih];
+}
+/* סיבוב המרובע עצמו ב-90 מעלות עם כיוון השעון, כשהמשתמש מסובב את התמונה */
+const scRotQuad=q=>{const r=q.map(p=>[1-p[1],p[0]]);return [r[3],r[0],r[1],r[2]]};
+
+/* --- זיהוי גבולות הקבלה --- */
+function scBox(a,w,h,r){ /* ממוצע בחלון (2r+1)², מופרד */
+  const t=new Float32Array(a.length),o=new Float32Array(a.length);
+  for(let y=0;y<h;y++){const b=y*w;let acc=0,cnt=0;for(let x=-r;x<w;x++){const i1=x+r,i0=x-r-1;if(i1<w){acc+=a[b+i1];cnt++}if(i0>=0){acc-=a[b+i0];cnt--}if(x>=0)t[b+x]=acc/cnt}}
+  for(let x=0;x<w;x++){let acc=0,cnt=0;for(let y=-r;y<h;y++){const i1=y+r,i0=y-r-1;if(i1<h){acc+=t[i1*w+x];cnt++}if(i0>=0){acc-=t[i0*w+x];cnt--}if(y>=0)o[y*w+x]=acc/cnt}}
+  return o;
+}
+function scOtsu(hist,n){
   let sum=0;for(let i=0;i<256;i++)sum+=i*hist[i];
   let wB=0,sB=0,best=-1,t=128;
   for(let i=0;i<256;i++){wB+=hist[i];if(!wB)continue;const wF=n-wB;if(!wF)break;sB+=i*hist[i];const mB=sB/wB,mF=(sum-sB)/wF,v=wB*wF*(mB-mF)*(mB-mF);if(v>best){best=v;t=i}}
-  /* מסכה, ואז טשטוש קל כדי שהכתב לא יקרע את הנייר לחתיכות */
-  const m=new Uint8Array(n);for(let i=0;i<n;i++)m[i]=g[i]>t?1:0;
-  const r=2,m2=new Uint8Array(n);
-  for(let y=0;y<sh;y++)for(let xx=0;xx<sw;xx++){
-    let a=0,cnt=0;
-    for(let yy=Math.max(0,y-r);yy<=Math.min(sh-1,y+r);yy++)for(let x2=Math.max(0,xx-r);x2<=Math.min(sw-1,xx+r);x2++){a+=m[yy*sw+x2];cnt++}
-    m2[y*sw+xx]=a*2>cnt?1:0;
+  return t;
+}
+const scCross=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);
+function scHull(pts){
+  pts.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  const lo=[],up=[];
+  for(const p of pts){while(lo.length>=2&&scCross(lo[lo.length-2],lo[lo.length-1],p)<=0)lo.pop();lo.push(p)}
+  for(let i=pts.length-1;i>=0;i--){const p=pts[i];while(up.length>=2&&scCross(up[up.length-2],up[up.length-1],p)<=0)up.pop();up.push(p)}
+  lo.pop();up.pop();return lo.concat(up);
+}
+const scArea=p=>{let a=0;for(let i=0;i<p.length;i++){const q=p[(i+1)%p.length];a+=p[i][0]*q[1]-q[0]*p[i][1]}return a/2};
+/* המרובע הגדול ביותר שקודקודיו על המעטפת, ואז הזזת כל צלע החוצה עד שכל הנייר בפנים */
+function scQuadOf(hull,w,h){
+  if(hull.length<4) return null;
+  let v=hull.slice();
+  while(v.length>22){ /* מפשטים: מסירים בכל פעם את הקודקוד שתורם הכי פחות שטח */
+    let bi=0,ba=Infinity;
+    for(let i=0;i<v.length;i++){const a=Math.abs(scCross(v[(i+v.length-1)%v.length],v[i],v[(i+1)%v.length]));if(a<ba){ba=a;bi=i}}
+    v.splice(bi,1);
   }
-  /* הרכיב המחובר הגדול ביותר */
-  const lab=new Int32Array(n);let bestC=0,bestN=0,id=0,bb=null;
-  const st=new Int32Array(n);
-  for(let s=0;s<n;s++){
-    if(!m2[s]||lab[s]) continue;
-    id++;let sp=0,cnt=0,x0=sw,x1=0,y0=sh,y1=0;st[sp++]=s;lab[s]=id;
+  let best=null,bA=0;const n=v.length;
+  for(let a=0;a<n-3;a++)for(let b=a+1;b<n-2;b++)for(let c=b+1;c<n-1;c++)for(let d=c+1;d<n;d++){
+    const A=Math.abs(scArea([v[a],v[b],v[c],v[d]]));if(A>bA){bA=A;best=[v[a],v[b],v[c],v[d]]}
+  }
+  if(!best) return null;
+  const cx=(best[0][0]+best[1][0]+best[2][0]+best[3][0])/4,cy=(best[0][1]+best[1][1]+best[2][1]+best[3][1])/4;
+  const sideLen=i=>Math.hypot(best[(i+1)%4][0]-best[i][0],best[(i+1)%4][1]-best[i][1]);
+  const cap=0.12*Math.min(Math.max(sideLen(0),sideLen(2)),Math.max(sideLen(1),sideLen(3)));
+  const lines=[];
+  for(let i=0;i<4;i++){
+    const A=best[i],B=best[(i+1)%4],L=Math.hypot(B[0]-A[0],B[1]-A[1])||1,dx=(B[0]-A[0])/L,dy=(B[1]-A[1])/L;
+    let nx=dy,ny=-dx;if((cx-A[0])*nx+(cy-A[1])*ny>0){nx=-nx;ny=-ny} /* נורמל שפונה החוצה */
+    let far=0;for(const p of hull){const d=(p[0]-A[0])*nx+(p[1]-A[1])*ny;if(d>far)far=d}
+    const s=Math.min(far,cap);
+    lines.push({px:A[0]+nx*s,py:A[1]+ny*s,dx,dy});
+  }
+  const out=[];
+  for(let i=0;i<4;i++){
+    const a=lines[(i+3)%4],b=lines[i],den=a.dx*b.dy-a.dy*b.dx;
+    if(Math.abs(den)<1e-6) return null;
+    const t=((b.px-a.px)*b.dy-(b.py-a.py)*b.dx)/den;
+    out.push([Math.max(0,Math.min(w,a.px+a.dx*t)),Math.max(0,Math.min(h,a.py+a.dy*t))]);
+  }
+  /* סדר: שמאל-עליון, ימין-עליון, ימין-תחתון, שמאל-תחתון */
+  const mx=(out[0][0]+out[1][0]+out[2][0]+out[3][0])/4,my=(out[0][1]+out[1][1]+out[2][1]+out[3][1])/4;
+  out.sort((p,q)=>Math.atan2(p[1]-my,p[0]-mx)-Math.atan2(q[1]-my,q[0]-mx));
+  let s=0;for(let i=1;i<4;i++)if(out[i][0]+out[i][1]<out[s][0]+out[s][1])s=i;
+  return [out[s],out[(s+1)%4],out[(s+2)%4],out[(s+3)%4]];
+}
+/* ניסיון זיהוי בסף אחד: מסכת "נייר", מילוי חורים (הכתב), ולכל רכיב: כמה הוא דומה למרובע וכמה מהגבול שלו יושב על קצה חד בתמונה */
+function scTry(fb,gr,g0,w,h,t,all){
+  const n=w*h,m=new Uint8Array(n);let on=0;
+  for(let i=0;i<n;i++)if(fb[i]>t){m[i]=1;on++}
+  if(on<n*0.03||on>n*0.985) return null;
+  const st=new Int32Array(n);let sp=0;
+  const out=new Uint8Array(n);
+  const seed=i=>{if(!m[i]&&!out[i]){out[i]=1;st[sp++]=i}};
+  for(let x=0;x<w;x++){seed(x);seed((h-1)*w+x)}
+  for(let y=0;y<h;y++){seed(y*w);seed(y*w+w-1)}
+  while(sp){const q=st[--sp],qx=q%w;if(qx>0)seed(q-1);if(qx<w-1)seed(q+1);if(q>=w)seed(q-w);if(q<n-w)seed(q+w)}
+  for(let i=0;i<n;i++)if(!m[i]&&!out[i])m[i]=1; /* חורים בתוך הנייר */
+  const lab=new Uint8Array(n);let best=null;
+  for(let s0=0;s0<n;s0++){
+    if(!m[s0]||lab[s0]) continue;
+    sp=0;st[sp++]=s0;lab[s0]=1;let cnt=0,nb=0,ns=0,cl=0,cr=0,ct=0,cb=0;
+    const xmin=new Int32Array(h).fill(w),xmax=new Int32Array(h).fill(-1);
     while(sp){
-      const q=st[--sp],qy=(q/sw)|0,qx=q-qy*sw;cnt++;
-      if(qx<x0)x0=qx;if(qx>x1)x1=qx;if(qy<y0)y0=qy;if(qy>y1)y1=qy;
-      if(qx>0&&m2[q-1]&&!lab[q-1]){lab[q-1]=id;st[sp++]=q-1}
-      if(qx<sw-1&&m2[q+1]&&!lab[q+1]){lab[q+1]=id;st[sp++]=q+1}
-      if(qy>0&&m2[q-sw]&&!lab[q-sw]){lab[q-sw]=id;st[sp++]=q-sw}
-      if(qy<sh-1&&m2[q+sw]&&!lab[q+sw]){lab[q+sw]=id;st[sp++]=q+sw}
+      const q=st[--sp],qy=(q/w)|0,qx=q-qy*w;cnt++;
+      if(qx<xmin[qy])xmin[qy]=qx;if(qx>xmax[qy])xmax[qy]=qx;
+      let edge=false;
+      if(qx>0){if(m[q-1]){if(!lab[q-1]){lab[q-1]=1;st[sp++]=q-1}}else edge=true}else cl++;
+      if(qx<w-1){if(m[q+1]){if(!lab[q+1]){lab[q+1]=1;st[sp++]=q+1}}else edge=true}else cr++;
+      if(qy>0){if(m[q-w]){if(!lab[q-w]){lab[q-w]=1;st[sp++]=q-w}}else edge=true}else ct++;
+      if(qy<h-1){if(m[q+w]){if(!lab[q+w]){lab[q+w]=1;st[sp++]=q+w}}else edge=true}else cb++;
+      if(edge){nb++;if(gr[q]>=g0)ns++}
     }
-    if(cnt>bestN){bestN=cnt;bestC=id;bb={x0,x1,y0,y1}}
+    if(cnt<n*0.035) continue;
+    /* רכיב שמכסה צלע שלמה של התמונה, נוגע בשלוש צלעות, או יושב בפינה על שתי צלעות סמוכות, הוא הרקע ולא קבלה */
+    const fl=cl/h,fr=cr/h,ft=ct/w,fbm=cb/w;
+    if(Math.max(fl,fr,ft,fbm)>=0.85) continue;
+    if((fl>=0.3?1:0)+(fr>=0.3?1:0)+(ft>=0.3?1:0)+(fbm>=0.3?1:0)>=3) continue;
+    if((fl>=0.5||fr>=0.5)&&(ft>=0.5||fbm>=0.5)) continue;
+    const pts=[];
+    for(let y=0;y<h;y++)if(xmax[y]>=0){pts.push([xmin[y],y],[xmin[y],y+1],[xmax[y]+1,y],[xmax[y]+1,y+1])}
+    const quad=scQuadOf(scHull(pts),w,h);
+    if(!quad) continue;
+    const qa=Math.abs(scArea(quad));if(qa<1) continue;
+    const fill=Math.min(1,cnt/qa),area=qa/n;
+    if(area>0.955) continue;
+    const sup=nb>=16?ns/nb:0;
+    const inside=[0,1,2,3].every(i=>scCross(quad[i],quad[(i+1)%4],[w/2,h/2])>=0)||[0,1,2,3].every(i=>scCross(quad[i],quad[(i+1)%4],[w/2,h/2])<=0);
+    const score=sup*sup*fill*fill*Math.sqrt(area)*(inside?1.15:1);
+    const r={quad,fill,area,sup,score,t};
+    if(all) all.push(r);
+    if(!best||score>best.score) best=r;
   }
-  if(!bb) return {canvas:src,cropped:false};
-  const frac=bestN/n,boxFrac=((bb.x1-bb.x0+1)*(bb.y1-bb.y0+1))/n;
-  /* אם כמעט כל התמונה "נייר" (סריקה) או שלא נמצא נייר ברור, לא חותכים */
-  if(frac<0.08||frac>0.9||bestN/(((bb.x1-bb.x0+1)*(bb.y1-bb.y0+1))||1)<0.45) return {canvas:src,cropped:false,frac,boxFrac};
-  const mx=Math.round(sw*0.03),my=Math.round(sh*0.02);
-  const X0=Math.max(0,bb.x0-mx),X1=Math.min(sw-1,bb.x1+mx),Y0=Math.max(0,bb.y0-my),Y1=Math.min(sh-1,bb.y1+my);
-  const fx=w/sw,fy=h/sh;
-  const cx=Math.round(X0*fx),cy=Math.round(Y0*fy),cw=Math.min(w-cx,Math.round((X1-X0+1)*fx)),ch=Math.min(h-cy,Math.round((Y1-Y0+1)*fy));
-  const out=document.createElement('canvas');out.width=cw;out.height=ch;
-  out.getContext('2d').drawImage(src,cx,cy,cw,ch,0,0,cw,ch);
-  return {canvas:out,cropped:true,frac,boxFrac,box:[cx,cy,cw,ch]};
+  return best;
 }
-/* מגדיל או מקטין כך שרוחב הקבלה יהיה כ-targetW פיקסלים (הכתב בקבלות קטן, והקריאה טובה יותר כשהוא גדול) */
-function fitWidth(src,targetW,maxSide){
-  let k=Math.max(0.4,Math.min(3,targetW/src.width));
-  k=Math.min(k,maxSide/Math.max(src.width,src.height));
-  if(Math.abs(k-1)<0.05) return src;
-  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(src.width*k));c.height=Math.max(1,Math.round(src.height*k));
-  const x=c.getContext('2d');x.imageSmoothingQuality='high';x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(src,0,0,c.width,c.height);
-  return c;
+function scDetect(src,dbg){
+  const W0=src.width,H0=src.height,k=Math.min(1,400/Math.max(W0,H0));
+  const w=Math.max(24,Math.round(W0*k)),h=Math.max(24,Math.round(H0*k)),n=w*h;
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(src,0,0,w,h);
+  const p=x.getImageData(0,0,w,h).data;freeCv(c);
+  /* שני מאפיינים שמבדילים נייר מרקע:
+     "לובן" (הנמוך מבין שלושת ערוצי הצבע): נייר בהיר ואפור, רקע כהה או צבעוני.
+     "אפרוריות" (היחס בין הערוץ הנמוך לגבוה): לא מושפעת מצל, ולכן מפרידה נייר מעץ, יד או מפה גם כשחלק מהקבלה מוצל */
+  const f1=new Float32Array(n),f2=new Float32Array(n);
+  for(let i=0,j=0;i<n;i++,j+=4){
+    const r=p[j],g=p[j+1],b=p[j+2],mn=r<g?(r<b?r:b):(g<b?g:b),mx=r>g?(r>b?r:b):(g>b?g:b);
+    f1[i]=mn;f2[i]=255*(mn+8)/(mx+8);
+  }
+  const all=dbg?[]:null;let best=null;
+  [f1,f2].forEach((f,fi)=>{
+    const fb=scBox(f,w,h,2),hist=new Uint32Array(256);
+    for(let i=0;i<n;i++)hist[fb[i]|0]++;
+    let lo=0,hi=255,acc=0;
+    for(let i=0;i<256;i++){acc+=hist[i];if(acc>=n*0.05){lo=i;break}}
+    acc=0;for(let i=255;i>=0;i--){acc+=hist[i];if(acc>=n*0.01){hi=i;break}}
+    if(hi-lo<12) return;
+    /* עוצמת הקצה בכל נקודה: הפרש על פני 4 פיקסלים */
+    const gr=new Float32Array(n);
+    for(let y=0;y<h;y++)for(let xx=0;xx<w;xx++){
+      const a=fb[y*w+Math.min(w-1,xx+2)]-fb[y*w+Math.max(0,xx-2)],b=fb[Math.min(h-1,y+2)*w+xx]-fb[Math.max(0,y-2)*w+xx];
+      gr[y*w+xx]=Math.max(Math.abs(a),Math.abs(b));
+    }
+    const g0=Math.max(10,0.13*hi),ts=[scOtsu(hist,n)];
+    for(let j=1;j<=12;j++)ts.push(Math.round(lo+(hi-lo)*j/13));
+    ts.filter((t,i,a)=>t>12&&t<252&&a.indexOf(t)===i).forEach(t=>{
+      const l0=all?all.length:0,r=scTry(fb,gr,g0,w,h,t,all);
+      if(all)for(let i=l0;i<all.length;i++)all[i].f=fi+1;
+      if(r&&(!best||r.score>best.score))best=r;
+    });
+  });
+  const res=(!best||best.fill<0.7||best.area<0.04||best.sup<0.6)
+    ?{ok:false,quad:SC_FULL(),fill:best?best.fill:0,area:best?best.area:0,sup:best?best.sup:0}
+    :{ok:true,quad:best.quad.map(q=>[q[0]/w,q[1]/h]),fill:best.fill,area:best.area,sup:best.sup,t:best.t};
+  if(dbg) res.all=all.map(r=>({f:r.f,t:r.t,area:+r.area.toFixed(3),fill:+r.fill.toFixed(2),sup:+r.sup.toFixed(2),score:+r.score.toFixed(3)}));
+  return res;
 }
-/* מכינים את התמונה לקריאה: חיתוך הקבלה מהרקע, גודל מתאים, ותיקון תאורה. main הוא הניסיון הראשון, second ניסיון עם עיבוד אחר
-   (כשהקריאה הראשונה לא מסתכמת לסכום הקבלה), full הוא התמונה המלאה, למקרה שהחיתוך טעה */
-function receiptCanvases(img){
-  const full=toCanvas(img,3200),cr=cropPaper(full);
-  return {
-    main:()=>fitWidth(prepOcr(cr.canvas),1500,4200),
-    second:()=>fitWidth(cr.canvas,1500,4200),
-    full:cr.cropped?()=>fitWidth(prepOcr(full),1500,4200):null,
-    store:cr.cropped?fitWidth(cr.canvas,Math.min(cr.canvas.width,1500),4200):null, /* מה שנשמר: הקבלה עצמה, ברזולוציה שאפשר לקרוא */
-    cropped:cr.cropped
-  };
+
+/* --- יישור: מיפוי פרויקטיבי מריבוע היחידה אל המרובע שסומן --- */
+function scHomog(q){
+  const x0=q[0][0],y0=q[0][1],x1=q[1][0],y1=q[1][1],x2=q[2][0],y2=q[2][1],x3=q[3][0],y3=q[3][1];
+  const dx1=x1-x2,dx2=x3-x2,sx=x0-x1+x2-x3,dy1=y1-y2,dy2=y3-y2,sy=y0-y1+y2-y3,den=dx1*dy2-dx2*dy1;
+  const g=den?(sx*dy2-dx2*sy)/den:0,h=den?(dx1*sy-sx*dy1)/den:0;
+  return [x1-x0+g*x1,x3-x0+h*x3,x0,y1-y0+g*y1,y3-y0+h*y3,y0,g,h];
+}
+/* המרובע תקין לסריקה: קמור, ולא קטן מדי */
+function scQuadOk(q){
+  let s=0;
+  for(let i=0;i<4;i++){const c=scCross(q[i],q[(i+1)%4],q[(i+2)%4]);if(Math.abs(c)<1e-5) return false;if(!s)s=Math.sign(c);else if(Math.sign(c)!==s) return false}
+  return Math.abs(scArea(q))>0.004;
+}
+/* הסריקה עצמה. מחזיר קנבס בגווני אפור: הקבלה ישרה, הרקע לבן, הכתב מחודד.
+   opt.plain: בלי הלבנה וחידוד (ניסיון קריאה חלופי) */
+function scScan(img,quad,rot,opt){
+  opt=opt||{};
+  const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;
+  const q=quad.map(p=>scToSrc(p,rot||0,iw,ih));
+  const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+  const qw=Math.max(dist(q[0],q[1]),dist(q[3],q[2])),qh=Math.max(dist(q[0],q[3]),dist(q[1],q[2]));
+  if(!(qw>=8&&qh>=8)) return null;
+  /* גודל הפלט: קבלה צרה וארוכה ברוחב 1500, מסמך רחב ברוחב 2000. מגדילים תמונה קטנה, אבל לא יותר מפי 2.6 */
+  let W=Math.min(qh/qw>=1.7?1500:2000,qw*2.6),H=W*qh/qw;
+  const cap=opt.cap||9.2e6;if(W*H>cap){const s=Math.sqrt(cap/(W*H));W*=s;H*=s}
+  W=Math.max(8,Math.round(W));H=Math.max(8,Math.round(H));
+  /* מהמקור לוקחים רק את המלבן שמקיף את המרובע, ברזולוציה שמספיקה לפלט */
+  const xs=q.map(p=>p[0]),ys=q.map(p=>p[1]);
+  const bx=Math.max(0,Math.floor(Math.min.apply(null,xs))-2),by=Math.max(0,Math.floor(Math.min.apply(null,ys))-2);
+  const ex=Math.min(iw,Math.ceil(Math.max.apply(null,xs))+2),ey=Math.min(ih,Math.ceil(Math.max.apply(null,ys))+2);
+  const bw=ex-bx,bh=ey-by;if(bw<4||bh<4) return null;
+  const k=Math.min(1.25*W/qw,Math.sqrt(Math.min(8.5e6,cap)/(bw*bh)));
+  const sw=Math.max(2,Math.round(bw*k)),sh=Math.max(2,Math.round(bh*k)),kx=sw/bw,ky=sh/bh;
+  const c=document.createElement('canvas');c.width=sw;c.height=sh;
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,sw,sh);x.imageSmoothingQuality='high';x.drawImage(img,bx,by,bw,bh,0,0,sw,sh);
+  let sd=x.getImageData(0,0,sw,sh).data;
+  const gray=new Uint8Array(sw*sh);
+  for(let i=0,j=0;i<gray.length;i++,j+=4)gray[i]=(sd[j]*77+sd[j+1]*150+sd[j+2]*29)>>8;
+  sd=null;
+  /* עותק קטן בצבע, לזיהוי הרקע שנשאר בתוך המסגרת */
+  const lw=Math.max(8,Math.round(W/4)),lh=Math.max(8,Math.round(H/4)),cw=Math.max(2,Math.round(sw/4)),ch=Math.max(2,Math.round(sh/4));
+  const c2=document.createElement('canvas');c2.width=cw;c2.height=ch;
+  const x2=c2.getContext('2d');x2.imageSmoothingQuality='high';x2.drawImage(c,0,0,cw,ch);
+  const cd=x2.getImageData(0,0,cw,ch).data;freeCv(c);freeCv(c2);
+  const qs=q.map(p=>[(p[0]-bx)*kx,(p[1]-by)*ky]),M=scHomog(qs);
+  const g=new Uint8Array(W*H);
+  for(let v=0;v<H;v++){
+    const fv=(v+.5)/H,nx=M[1]*fv+M[2],ny=M[4]*fv+M[5],d0=M[7]*fv+1,o=v*W;
+    for(let u=0;u<W;u++){
+      const fu=(u+.5)/W,d=M[6]*fu+d0;
+      let X=(M[0]*fu+nx)/d-.5,Y=(M[3]*fu+ny)/d-.5;
+      if(X<0)X=0;else if(X>sw-1.001)X=sw-1.001;
+      if(Y<0)Y=0;else if(Y>sh-1.001)Y=sh-1.001;
+      const x0=X|0,y0=Y|0,tx=X-x0,ty=Y-y0,i0=y0*sw+x0,a=gray[i0],b=gray[i0+1],e=gray[i0+sw],f=gray[i0+sw+1];
+      g[o+u]=(a+(b-a)*tx)*(1-ty)+(e+(f-e)*tx)*ty+.5;
+    }
+  }
+  const outC=document.createElement('canvas');outC.width=W;outC.height=H;
+  const ox=outC.getContext('2d'),od=ox.createImageData(W,H),op=od.data;
+  if(opt.plain){
+    for(let i=0,j=0;i<g.length;i++,j+=4){op[j]=op[j+1]=op[j+2]=g[i];op[j+3]=255}
+    ox.putImageData(od,0,0);return {canvas:outC,w:W,h:H,removed:0};
+  }
+  /* הרקע שנשאר בתוך המסגרת (עץ, יד, משטח כהה): צבעוני או כהה מאוד ביחס לנייר, ומחובר לשולי הסריקה. הופך ללבן */
+  const lr=new Float32Array(lw*lh),lg=new Float32Array(lw*lh),lb=new Float32Array(lw*lh);
+  const Ms=scHomog(qs.map(p=>[p[0]*cw/sw,p[1]*ch/sh]));
+  for(let v=0;v<lh;v++){
+    const fv=(v+.5)/lh;
+    for(let u=0;u<lw;u++){
+      const fu=(u+.5)/lw,d=Ms[6]*fu+Ms[7]*fv+1;
+      let X=(Ms[0]*fu+Ms[1]*fv+Ms[2])/d-.5,Y=(Ms[3]*fu+Ms[4]*fv+Ms[5])/d-.5;
+      if(X<0)X=0;else if(X>cw-1.001)X=cw-1.001;
+      if(Y<0)Y=0;else if(Y>ch-1.001)Y=ch-1.001;
+      const x0=X|0,y0=Y|0,tx=X-x0,ty=Y-y0,i0=(y0*cw+x0)*4,i1=i0+cw*4,w00=(1-tx)*(1-ty),w10=tx*(1-ty),w01=(1-tx)*ty,w11=tx*ty,i=v*lw+u;
+      lr[i]=cd[i0]*w00+cd[i0+4]*w10+cd[i1]*w01+cd[i1+4]*w11;
+      lg[i]=cd[i0+1]*w00+cd[i0+5]*w10+cd[i1+1]*w01+cd[i1+5]*w11;
+      lb[i]=cd[i0+2]*w00+cd[i0+6]*w10+cd[i1+2]*w01+cd[i1+6]*w11;
+    }
+  }
+  /* צבע הנייר: הפיקסלים הבהירים במרכז הסריקה */
+  const hs=new Uint32Array(256);let hn=0;
+  const x0c=Math.round(lw*.15),x1c=Math.round(lw*.85),y0c=Math.round(lh*.1),y1c=Math.round(lh*.9);
+  for(let v=y0c;v<y1c;v++)for(let u=x0c;u<x1c;u++){const i=v*lw+u;hs[Math.min(255,(lr[i]*.299+lg[i]*.587+lb[i]*.114)|0)]++;hn++}
+  let thr=255,acc=0;for(let i=255;i>=0;i--){acc+=hs[i];if(acc>=hn*0.3){thr=i;break}}
+  let pr=0,pg=0,pb=0,pn=0;
+  for(let v=y0c;v<y1c;v++)for(let u=x0c;u<x1c;u++){const i=v*lw+u;if(lr[i]*.299+lg[i]*.587+lb[i]*.114>=thr){pr+=lr[i];pg+=lg[i];pb+=lb[i];pn++}}
+  pr=Math.max(40,pr/(pn||1));pg=Math.max(40,pg/(pn||1));pb=Math.max(40,pb/(pn||1));
+  const like=new Uint8Array(lw*lh);
+  for(let i=0;i<like.length;i++){
+    const r=lr[i]/pr,gg=lg[i]/pg,b=lb[i]/pb,mx=Math.max(r,gg,b),mn=Math.min(r,gg,b);
+    like[i]=(mx-mn>0.13||r*.299+gg*.587+b*.114<0.3)?1:0;
+  }
+  const rem=new Uint8Array(lw*lh),st=new Int32Array(lw*lh);let sp=0,nrem=0;
+  const seed=i=>{if(like[i]&&!rem[i]){rem[i]=1;st[sp++]=i;nrem++}};
+  for(let u=0;u<lw;u++){seed(u);seed((lh-1)*lw+u)}
+  for(let v=0;v<lh;v++){seed(v*lw);seed(v*lw+lw-1)}
+  while(sp){const p=st[--sp],px=p%lw;if(px>0)seed(p-1);if(px<lw-1)seed(p+1);if(p>=lw)seed(p-lw);if(p<lw*lh-lw)seed(p+lw)}
+  let al=null;
+  if(nrem>0&&nrem<lw*lh*0.92){
+    /* מרחיבים בפיקסל אחד ומרככים, כדי שלא יישאר פס כהה בשולי הנייר */
+    const a0=new Float32Array(lw*lh);
+    for(let v=0;v<lh;v++)for(let u=0;u<lw;u++){
+      const i=v*lw+u;
+      a0[i]=(rem[i]||(u>0&&rem[i-1])||(u<lw-1&&rem[i+1])||(v>0&&rem[i-lw])||(v<lh-1&&rem[i+lw]))?1:0;
+    }
+    al=scBox(a0,lw,lh,1);
+  }
+  /* צבע הנייר המקומי (תאורה לא אחידה, צל): אחוזון גבוה בכל משבצת, התפשטות לשכנים, והחלקה */
+  const cs=Math.max(12,Math.round(W/56)),gw=Math.ceil(W/cs),gh=Math.ceil(H/cs);
+  let bg=new Float32Array(gw*gh);const hh=new Uint32Array(256);
+  for(let gy=0;gy<gh;gy++)for(let gx=0;gx<gw;gx++){
+    hh.fill(0);let cnt=0;const y1=Math.min(H,(gy+1)*cs),x1=Math.min(W,(gx+1)*cs);
+    for(let y=gy*cs;y<y1;y+=2){const o=y*W;for(let xx=gx*cs;xx<x1;xx+=2){hh[g[o+xx]]++;cnt++}}
+    let a2=0,v=255;for(let i=255;i>=0;i--){a2+=hh[i];if(a2>=cnt*0.12){v=i;break}}
+    bg[gy*gw+gx]=v;
+  }
+  /* משבצת שכולה דיו (לוגו, כתב צפוף) או רקע כהה מקבלת את צבע הנייר מהשכנות; משבצת רגילה שומרת את שלה, כך שגם קפל או צל צר מתיישרים */
+  const dil=new Float32Array(gw*gh);
+  for(let gy=0;gy<gh;gy++)for(let gx=0;gx<gw;gx++){
+    let m=0;for(let yy=Math.max(0,gy-1);yy<=Math.min(gh-1,gy+1);yy++)for(let xx=Math.max(0,gx-1);xx<=Math.min(gw-1,gx+1);xx++){const v=bg[yy*gw+xx];if(v>m)m=v}
+    const own=bg[gy*gw+gx];
+    dil[gy*gw+gx]=(opt.bgMax||own<m*0.72)?m:own;
+  }
+  bg=scBox(dil,gw,gh,1);
+  /* נרמול לפי צבע הנייר, ואז מתיחה: הנייר ללבן, הדיו לכהה */
+  const e=new Uint8Array(W*H),hist=new Uint32Array(256);
+  for(let y=0;y<H;y++){
+    const fy=Math.min(gh-1.001,Math.max(0,(y+.5)/cs-.5)),y0=fy|0,ty=fy-y0,o=y*W;
+    for(let xx=0;xx<W;xx++){
+      const fx=Math.min(gw-1.001,Math.max(0,(xx+.5)/cs-.5)),x0=fx|0,tx=fx-x0,i0=y0*gw+x0;
+      const b=(bg[i0]*(1-tx)+bg[i0+1]*tx)*(1-ty)+(bg[i0+gw]*(1-tx)+bg[i0+gw+1]*tx)*ty;
+      let v=g[o+xx]*235/(b<24?24:b);if(v>255)v=255;
+      e[o+xx]=v;hist[v|0]++;
+    }
+  }
+  let lo=0;acc=0;for(let i=0;i<256;i++){acc+=hist[i];if(acc>=W*H*0.012){lo=i;break}}
+  const black=Math.min(150,lo*0.8),white=222,kk=255/(white-black);
+  const lut=new Uint8Array(256);for(let i=0;i<256;i++){const v=(i-black)*kk;lut[i]=v<0?0:v>255?255:v}
+  for(let i=0;i<e.length;i++)e[i]=lut[e[i]];
+  /* חידוד (מסכת אי-חדות), והלבנת הרקע */
+  const amt=opt.sharp==null?0.7:opt.sharp;let dark=0;
+  for(let y=0;y<H;y++){
+    const o=y*W,fy=al?Math.min(lh-1.001,Math.max(0,(y+.5)*lh/H-.5)):0,ay=fy|0,ty=fy-ay;
+    for(let xx=0;xx<W;xx++){
+      const i=o+xx;let v=e[i];
+      if(amt&&y>0&&y<H-1&&xx>0&&xx<W-1){
+        const bl=(e[i-W-1]+2*e[i-W]+e[i-W+1]+2*e[i-1]+4*v+2*e[i+1]+e[i+W-1]+2*e[i+W]+e[i+W+1])/16;
+        v=v+amt*(v-bl);if(v<0)v=0;else if(v>255)v=255;
+      }
+      if(al){
+        const fx=Math.min(lw-1.001,Math.max(0,(xx+.5)*lw/W-.5)),ax=fx|0,tx=fx-ax,i0=ay*lw+ax;
+        let a=(al[i0]*(1-tx)+al[i0+1]*tx)*(1-ty)+(al[i0+lw]*(1-tx)+al[i0+lw+1]*tx)*ty;
+        a=a*1.6;if(a>1)a=1;
+        v=v+(255-v)*a;
+      }
+      if(v<110)dark++;
+      const j=i*4;op[j]=op[j+1]=op[j+2]=v;op[j+3]=255;
+    }
+  }
+  ox.putImageData(od,0,0);
+  /* blank: כמעט בלי דיו. בטלפון זה קורה כשהדפדפן לא הצליח להקצות זיכרון לתמונה */
+  return {canvas:outC,w:W,h:H,removed:al?nrem/(lw*lh):0,blank:dark<W*H*0.0003};
 }
 
 /* --- מנוע הקריאה (קבצים מקומיים באתר, עברית+אנגלית) --- */
-let tw=null,tessP=null,tessLog=()=>{},rcBusy=false,rcPass=1;
+let tw=null,tessP=null,tessLog=()=>{},tessQuiet=false,rcBusy=false;
 const absUrl=p=>new URL(p,location.href).href;
 function loadTess(){
   if(window.Tesseract) return Promise.resolve();
@@ -1602,21 +1907,118 @@ function loadTess(){
 }
 async function getWorker(){
   await loadTess();
-  if(!tw) tw=await Tesseract.createWorker('heb+eng',1,{workerPath:absUrl('ocr/worker.min.js'),corePath:absUrl('ocr/core'),langPath:absUrl('ocr/lang'),logger:m=>tessLog(m)});
+  if(!tw) tw=await Tesseract.createWorker('heb+eng',1,{workerPath:absUrl('ocr/worker.min.js'),corePath:absUrl('ocr/core'),langPath:absUrl('ocr/lang'),logger:m=>{if(!tessQuiet)tessLog(m)}});
   return tw;
 }
 const rank={none:0,low:1,mid:2,high:3};
 const itemsSum=p=>Math.round(((p.items||[]).reduce((s,x)=>s+x.price,0))*100)/100;
-/* הפער בין סכום הפריטים לסכום הקבלה: ככל שקטן יותר, הקריאה מהימנה יותר */
-const itemsGap=p=>p&&p.best>0&&(p.items||[]).length?Math.abs(p.best-itemsSum(p)):Infinity;
-async function ocrReceipt(rcv,onPass){
-  const w=await getWorker();
+
+/* --- מחירים שהקריאה פספסה ---
+   מנוע הקריאה מחזיר לפעמים "0", מספר קטוע או אותיות במקום מחיר, בעיקר כשהמחיר רחוק משם המוצר באותה שורה.
+   מאתרים את עמודת המחירים לפי השורות שנקראו טוב, וקוראים שוב רק את תא המחיר של השורות החשודות,
+   כשהמנוע מוגבל לספרות. מחיר מתקבל רק כששתי קריאות של אותו תא, בגדלים שונים, מסכימות */
+async function fixPrices(w,cv,data){
+  const lines=[];
+  (data.blocks||[]).forEach(b=>(b.paragraphs||[]).forEach(p=>(p.lines||[]).forEach(l=>{
+    const t=String(l.text||'').replace(/\s+$/,'');
+    if(t.trim()&&l.bbox) lines.push({t,bb:l.bbox,ws:(l.words||[]).filter(x=>x.text&&x.text.trim()&&x.bbox)});
+  })));
+  if(lines.length<3) return data.text;
+  const W=cv.width,H=cv.height;
+  const cl=s=>String(s).replace(BIDI,'').replace(/[|\\\/()\[\]{}:;'"`*₪]+/g,'').trim();
+  const PR=/^-?\d{1,4}[.,]\d{2}-?$/,mid=x=>(x.bbox.x0+x.bbox.x1)/2,num=(a,b)=>a-b;
+  /* באיזה צד המחירים, ומה גבולות העמודה */
+  const left=[],right=[];
+  lines.forEach(l=>{
+    const pw=l.ws.filter(x=>PR.test(cl(x.text)));if(!pw.length) return;
+    const a=pw.reduce((m,x)=>x.bbox.x0<m.bbox.x0?x:m),z=pw.reduce((m,x)=>x.bbox.x1>m.bbox.x1?x:m);
+    if(mid(a)<W*0.4) left.push(a); else if(mid(z)>W*0.6) right.push(z);
+  });
+  const isL=left.length>=right.length;let col=isL?left:right;
+  if(col.length<3) return data.text;
+  const mc=col.map(mid).sort(num)[col.length>>1];
+  col=col.filter(x=>Math.abs(mid(x)-mc)<W*0.12);
+  if(col.length<3) return data.text;
+  const c0=Math.min.apply(null,col.map(x=>x.bbox.x0)),c1=Math.max.apply(null,col.map(x=>x.bbox.x1));
+  const hMed=col.map(x=>x.bbox.y1-x.bbox.y0).sort(num)[col.length>>1]||24;
+  const inCol=x=>{const c=mid(x);return c>=c0-W*0.03&&c<=c1+W*0.03};
+  const todo=[];
+  lines.forEach(l=>{
+    const cw=l.ws.filter(inCol);
+    if(cw.some(x=>PR.test(cl(x.text)))) return;
+    const t=normOcr(l.t),other=l.ws.filter(x=>!inCol(x));
+    /* 1. בתא המחיר יש ספרות או "0" שאינם מחיר תקין */
+    const bad=cw.filter(x=>{const s=cl(x.text);return /\d/.test(s)||/^[oO.,\-–—]+$/.test(s)});
+    /* 2. שורת סיכום בלי סכום. 3. שורת כמות או משקל בלי הסכום שלה */
+    const isTot=TOTALWORD.test(t)&&!/\d[.,]\d{2}/.test(t);
+    const isQty=/יחיד|ק"?ג(\s|$)/.test(t)&&/\d/.test(t)&&!/\d{7,}/.test(t);
+    /* 4. בתא המחיר יש משהו שנקרא כאותיות, והוא רחוק משאר השורה (כלומר תא נפרד ולא המשך של משפט) */
+    let far=false;
+    if(cw.length&&!bad.length&&other.length){
+      const gap=isL?Math.min.apply(null,other.map(x=>x.bbox.x0))-Math.max.apply(null,cw.map(x=>x.bbox.x1)):Math.min.apply(null,cw.map(x=>x.bbox.x0))-Math.max.apply(null,other.map(x=>x.bbox.x1));
+      far=gap>=W*0.06&&(other.map(x=>x.text).join('').match(/[א-ת]/g)||[]).length>=3&&cw.map(x=>cl(x.text)).join('').length<=7;
+    }
+    if(bad.length||isTot||(isQty&&!cw.length)||far) todo.push({l,drop:bad.length?bad:far?cw:[],pri:isTot?0:bad.length?1:2});
+  });
+  if(!todo.length) return data.text;
+  todo.sort((a,b)=>a.pri-b.pri);
+  let fixed=0;
+  tessQuiet=true;
+  await w.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'0123456789.,-'});
+  try{
+    for(const it of todo.slice(0,12)){
+      const l=it.l,cy=(l.bb.y0+l.bb.y1)/2,lh=Math.min(l.bb.y1-l.bb.y0,hMed*1.6);
+      const reads=[];
+      for(const o of [{py:.25,th:36,m:16},{py:.25,th:56,m:20},{py:.1,th:44,m:16}]){
+        const top=Math.max(0,Math.round(cy-lh/2-hMed*o.py)),bot=Math.min(H,Math.round(cy+lh/2+hMed*o.py));
+        /* הצד שפונה לשאר השורה נחתך צמוד, כדי שלא תיכנס ספרה מהעמודה הסמוכה (ברקוד) */
+        const L=Math.max(0,Math.round(c0-W*(isL?0.03:0.003))),R=Math.min(W,Math.round(c1+W*(isL?0.003:0.03)));
+        if(R-L<8||bot-top<8) continue;
+        const k=o.th/hMed,c=document.createElement('canvas');
+        c.width=Math.round((R-L)*k)+2*o.m;c.height=Math.round((bot-top)*k)+2*o.m;
+        const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.imageSmoothingQuality='high';
+        x.drawImage(cv,L,top,R-L,bot-top,o.m,o.m,Math.round((R-L)*k),Math.round((bot-top)*k));
+        let s='';try{s=((await w.recognize(c)).data.text||'').replace(/\s+/g,'')}catch(e){}
+        freeCv(c);reads.push(s);
+      }
+      /* שתי קריאות שמסכימות על מחיר מלא; או שלוש שמסכימות על מחיר שהספרה האחרונה שלו נחתכה */
+      const cnt={};let neg=false;
+      reads.forEach(s=>{const m=/^(-?)(\d{1,4})[.,](\d{2})(-?)$/.exec(s);if(m){const k2=(+m[2])+'.'+m[3];cnt[k2]=(cnt[k2]||0)+1;if(m[1]||m[4])neg=true}});
+      let val=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0];
+      if(!val||cnt[val]<2){
+        val=null;const one=reads.map(s=>/^(-?)(\d{1,4})[.,](\d)(-?)$/.exec(s));
+        if(reads.length===3&&one.every(Boolean)&&one.every(m=>m[2]===one[0][2]&&m[3]===one[0][3])){val=(+one[0][2])+'.'+one[0][3]+'0';neg=one.some(m=>m[1]||m[4])}
+      }
+      if(!val||!(parseFloat(val)>0)) continue;
+      const toks=l.t.replace(BIDI,'').split(/\s+/).filter(Boolean);
+      if(it.drop.some(x=>/[-–—]/.test(x.text))||toks.some(tk=>/^[-–—]$/.test(tk))) neg=true;
+      it.drop.map(x=>cl(x.text)).forEach(d=>{const j=toks.findIndex(tk=>cl(tk)===d);if(j>=0)toks.splice(j,1)});
+      l.t=toks.filter(tk=>!/^[-–—|]+$/.test(tk)).join(' ')+' '+parseFloat(val).toFixed(2)+(neg?'-':'');
+      fixed++;
+    }
+  }finally{
+    try{await w.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:''})}catch(e){}
+    tessQuiet=false;
+  }
+  return fixed?lines.map(l=>l.t).join('\n'):data.text;
+}
+
+/* קריאת סריקה אחת: הטקסט המלא, ואז השלמת מחירים שנקראו לא נכון */
+async function ocrText(w,cv){
   await w.setParameters({tessedit_pageseg_mode:'6'});
-  const read=async cv=>{
-    let r=await w.recognize(cv),p=parseReceipt(r.data.text),it=parseItems(r.data.text,p.best);
+  const r=await w.recognize(cv,{},{text:true,blocks:true});
+  let text=r.data.text||'';
+  try{text=await fixPrices(w,cv,r.data)}catch(e){}
+  return text;
+}
+async function ocrReceipt(cv,alt){
+  const w=await getWorker();
+  const read=async c=>{
+    const text=await ocrText(w,c);
+    let p=parseReceipt(text),it=parseItems(text,p.best);
     if(rank[p.conf]<2){ /* לא נמצאה שורת סיכום: ניסיון שני בפריסת טקסט מפוזרת */
       await w.setParameters({tessedit_pageseg_mode:'11'});
-      r=await w.recognize(cv);
+      const r=await w.recognize(c);
       const p2=parseReceipt(r.data.text);
       if(rank[p2.conf]>rank[p.conf]) p=p2;
       if(!it.items.length){const it2=parseItems(r.data.text,p.best);if(it2.items.length) it=it2}
@@ -1625,60 +2027,183 @@ async function ocrReceipt(rcv,onPass){
     p.items=it.items;
     return p;
   };
-  /* הטובה מבין שתי קריאות: סכום ודאי קודם, ואז פער קטן יותר בין הפריטים לסכום, ואז יותר פריטים */
-  const better=(a,b)=>{
-    if(rank[a.conf]!==rank[b.conf]) return rank[a.conf]>rank[b.conf];
-    const ga=itemsGap(a),gb=itemsGap(b);
-    if(Math.abs(ga-gb)>0.005&&(isFinite(ga)||isFinite(gb))) return ga<gb;
-    return (a.items||[]).length>(b.items||[]).length;
-  };
-  const t0=Date.now();
-  let p=await read(rcv.main());
-  /* הפריטים לא מסתכמים בדיוק לסכום הקבלה: קריאה שנייה בעיבוד אחר, ומשווים. מדלגים אם הראשונה כבר לקחה זמן רב (מכשיר איטי) */
-  if(!(itemsGap(p)<0.01)&&Date.now()-t0<35000){
-    if(onPass) onPass();
-    try{const p2=await read(rcv.second());if(better(p2,p)) p=p2}catch(e){}
+  let p=await read(cv);
+  /* לא נקרא כלום: ניסיון נוסף על אותה סריקה, בלי הלבנה וחידוד */
+  if(alt&&p.conf==='none'&&!p.items.length){
+    let c2=null;
+    try{c2=alt();if(c2){const p2=await read(c2.canvas);if(rank[p2.conf]>rank[p.conf]||p2.items.length>p.items.length) p=p2}}catch(e){}
+    if(c2) freeCv(c2.canvas);
   }
-  /* אם החיתוך הוביל לקריאה ריקה, מנסים שוב על התמונה המלאה */
-  if(rcv.full&&p.conf==='none'&&!p.items.length){const p3=await read(rcv.full());if(better(p3,p)) p=p3}
   return p;
 }
 
 /* --- הזרימה במסך --- */
-let rc=null,rcSeq=0,rcSeq0=0,rcUrl=null;
+let rc=null,rcSeq=0,rcSeq0=0,rcUrl=null,rcSrc=null;
 const todayStr=()=>{const n=new Date();return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate())};
 function rcProg(msg,f){$('rcst').textContent=msg;$('rcbar').style.width=Math.round(Math.max(0,Math.min(1,f))*100)+'%'}
-function rcClear(){
+/* מנקה את הטופס ואת הסריקה, אבל זוכר את הצילום, כדי שאפשר יהיה לתקן את המסגרת ולסרוק שוב */
+function rcReset(){
   rc=null;rcSeq++;$('rcwork').hidden=true;$('rcform').hidden=true;$('rcdup').hidden=true;rcItems.set([]);
   if(rcUrl){URL.revokeObjectURL(rcUrl);rcUrl=null}
-  $('rcimg').removeAttribute('src');$('rcfc').value='';$('rcff').value='';
+  $('rcimg').removeAttribute('src');$('rcrescan').hidden=true;$('rcnote').textContent='';
 }
+function rcClear(){rcReset();rcSrc=null;scHide();$('rcfc').value='';$('rcff').value=''}
 tessLog=m=>{
   const st=m.status||'';
   if(st==='loading tesseract core') rcProg('טוען את מנוע הקריאה...',.1+(m.progress||0)*.1);
   else if(st==='loading language traineddata') rcProg('טוען נתוני שפה...',.2+(m.progress||0)*.15);
   else if(st==='initializing api'||st==='initializing tesseract') rcProg('מאתחל...',.38);
-  else if(st==='recognizing text') rcProg(rcPass>1?'בודק שוב כדי לדייק...':'קורא את הקבלה...',.4+(m.progress||0)*.55);
+  else if(st==='recognizing text') rcProg('קורא את הקבלה...',.4+(m.progress||0)*.55);
 };
+/* צילום חדש: פותחים את הסורק. הקריאה מתחילה רק אחרי שהמסגרת אושרה */
 async function rcStart(file){
   if(!file||rcBusy) return;
-  rcClear(); const my=rcSeq; rcBusy=true;
-  $('rcwork').hidden=false; rcProg('מכין את התמונה...',.03); $('rcnote').textContent='';
+  rcClear(); rcBusy=true;
   try{
     let img;
-    try{img=await loadImg(file)}catch(e){flash('לא ניתן לפתוח את התמונה');rcClear();return}
-    const rcv=receiptCanvases(img);
-    /* נשמרת הקבלה עצמה (אחרי חיתוך הרקע) ולא כל הצילום, כדי שאפשר יהיה לקרוא אותה שוב ושהקובץ יישאר קטן */
-    const up=rcv.store||toCanvas(img,1600);
-    const blob=await new Promise(r=>up.toBlob(r,'image/jpeg',0.8));
-    if(!blob){flash('לא ניתן לעבד את התמונה');rcClear();return}
+    try{img=await loadImg(file)}catch(e){flash('לא ניתן לפתוח את התמונה');return}
+    rcSrc={img,rot:0,quad:null,ok:false,touched:false};
+    scOpen();
+  }finally{rcBusy=false}
+}
+
+/* --- מסך הסורק: הצילום עם מסגרת סביב הקבלה. גוררים פינה או צלע, ורואים הגדלה של המקום שנוגעים בו --- */
+let scCv=null,scDrag=null;
+for(let i=0;i<8;i++){const h=document.createElement('i');h.className='sch'+(i>3?' e':'');h.dataset.h=i;h.setAttribute('aria-hidden','true');$('scwrap').appendChild(h)}
+function scMsg(){
+  const s=rcSrc;if(!s) return;
+  $('scmsg').textContent=s.touched?'כשהמסגרת מקיפה את הקבלה, לחצו על סריקה.'
+    :s.ok?'הקבלה זוהתה. אם המסגרת לא מדויקת, גררו את הנקודות אל קצות הקבלה.'
+    :'לא זיהיתי את גבולות הקבלה. גררו את הנקודות אל פינות הקבלה, או סרקו את כל התמונה.';
+}
+function scOpen(){
+  const s=rcSrc;if(!s) return;
+  if(scCv){scCv.remove();freeCv(scCv);scCv=null}
+  try{scCv=scView(s.img,s.rot,1400)}catch(e){scCv=null}
+  if(!scCv||scCv.width<2){flash('לא ניתן לפתוח את התמונה');rcClear();return}
+  scCv.id='sccv';$('scwrap').insertBefore(scCv,$('scwrap').firstChild);
+  if(!s.quad){
+    let d=null;try{d=scDetect(scCv)}catch(e){}
+    s.quad=d?d.quad:SC_FULL();s.ok=!!(d&&d.ok);s.touched=false;
+  }
+  scMsg();$('sc').hidden=false;scLayout();
+}
+function scHide(){
+  $('sc').hidden=true;scDrag=null;$('sclupe').hidden=true;
+  if(scCv){scCv.remove();freeCv(scCv);scCv=null}
+}
+function scLayout(){
+  if(!scCv||$('sc').hidden) return;
+  const st=$('scstage'),pad=28,aw=Math.max(60,st.clientWidth-2*pad),ah=Math.max(60,st.clientHeight-2*pad);
+  const k=Math.min(aw/scCv.width,ah/scCv.height),wr=$('scwrap');
+  wr.style.width=Math.round(scCv.width*k)+'px';wr.style.height=Math.round(scCv.height*k)+'px';
+  scDraw();
+}
+function scDraw(){
+  const s=rcSrc,wr=$('scwrap');if(!s||!s.quad) return;
+  const dw=wr.clientWidth,dh=wr.clientHeight,P=s.quad.map(p=>[p[0]*dw,p[1]*dh]);
+  const d=P.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join('')+'Z';
+  $('scsvg').setAttribute('viewBox','0 0 '+dw+' '+dh);
+  $('scdim').setAttribute('d','M0 0H'+dw+'V'+dh+'H0Z'+d);
+  $('scpoly').setAttribute('d',d);$('scpoly').classList.toggle('bad',!scQuadOk(s.quad));
+  const hs=wr.querySelectorAll('.sch');
+  for(let i=0;i<4;i++){
+    hs[i].style.left=P[i][0]+'px';hs[i].style.top=P[i][1]+'px';
+    const a=P[i],b=P[(i+1)%4],e=hs[4+i];
+    e.style.left=(a[0]+b[0])/2+'px';e.style.top=(a[1]+b[1])/2+'px';
+    e.style.transform='rotate('+Math.atan2(b[1]-a[1],b[0]-a[0])+'rad)';
+    e.hidden=Math.hypot(b[0]-a[0],b[1]-a[1])<118; /* צלע קצרה: אין מקום לידית באמצע */
+  }
+}
+/* זכוכית מגדלת: האצבע מסתירה את הנקודה שגוררים, ולכן מציגים אותה מוגדלת בצד השני של המסך */
+function scLupe(){
+  const L=$('sclupe'),d=scDrag,s=rcSrc;
+  if(!d||!s||!scCv){L.hidden=true;return}
+  const q=s.quad,pt=d.i<4?q[d.i]:[(q[d.i-4][0]+q[(d.i-3)%4][0])/2,(q[d.i-4][1]+q[(d.i-3)%4][1])/2];
+  const S=124,dpr=Math.min(3,window.devicePixelRatio||1),px=Math.round(S*dpr);
+  if(L.width!==px){L.width=px;L.height=px}
+  const x=L.getContext('2d'),dw=$('scwrap').clientWidth||1,sw=S/2.6*scCv.width/dw;
+  const sx=pt[0]*scCv.width-sw/2,sy=pt[1]*scCv.height-sw/2,f=px/sw;
+  x.fillStyle='#0b111c';x.fillRect(0,0,px,px);
+  const ax=Math.max(0,sx),ay=Math.max(0,sy),bx=Math.min(scCv.width,sx+sw),by=Math.min(scCv.height,sy+sw);
+  if(bx>ax&&by>ay){x.imageSmoothingQuality='high';x.drawImage(scCv,ax,ay,bx-ax,by-ay,(ax-sx)*f,(ay-sy)*f,(bx-ax)*f,(by-ay)*f)}
+  x.strokeStyle='#2dd4bf';x.lineWidth=2*dpr;x.beginPath();
+  q.forEach((p,j)=>{const X=(p[0]*scCv.width-sx)*f,Y=(p[1]*scCv.height-sy)*f;if(j)x.lineTo(X,Y);else x.moveTo(X,Y)});
+  x.closePath();x.stroke();
+  const c=px/2,r=9*dpr;
+  x.strokeStyle='#fff';x.lineWidth=1.5*dpr;x.beginPath();x.moveTo(c-r,c);x.lineTo(c+r,c);x.moveTo(c,c-r);x.lineTo(c,c+r);x.stroke();
+  L.style.left=pt[0]<0.5?'auto':'12px';L.style.right=pt[0]<0.5?'12px':'auto';
+  L.hidden=false;
+}
+const scPt=e=>{const r=$('scwrap').getBoundingClientRect();return [(e.clientX-r.left)/(r.width||1),(e.clientY-r.top)/(r.height||1)]};
+$('scwrap').addEventListener('pointerdown',e=>{
+  const h=e.target.closest('.sch');if(!h||!rcSrc||scDrag) return;
+  e.preventDefault();
+  try{h.setPointerCapture(e.pointerId)}catch(err){}
+  scDrag={i:+h.dataset.h,id:e.pointerId,p0:scPt(e),q0:rcSrc.quad.map(p=>p.slice()),el:h};
+  h.classList.add('on');scLupe();
+});
+$('scwrap').addEventListener('pointermove',e=>{
+  const d=scDrag;if(!d||e.pointerId!==d.id||!rcSrc) return;
+  e.preventDefault();
+  const p=scPt(e),idx=d.i<4?[d.i]:[d.i-4,(d.i-3)%4];
+  let dx=p[0]-d.p0[0],dy=p[1]-d.p0[1];
+  /* לא יוצאים מגבולות התמונה. בגרירת צלע שתי הנקודות שלה זזות יחד */
+  idx.forEach(j=>{dx=Math.max(-d.q0[j][0],Math.min(1-d.q0[j][0],dx));dy=Math.max(-d.q0[j][1],Math.min(1-d.q0[j][1],dy))});
+  const q=d.q0.map(v=>v.slice());idx.forEach(j=>{q[j]=[d.q0[j][0]+dx,d.q0[j][1]+dy]});
+  rcSrc.quad=q;
+  if(!rcSrc.touched){rcSrc.touched=true;scMsg()}
+  scDraw();scLupe();
+});
+const scEnd=e=>{const d=scDrag;if(!d||e.pointerId!==d.id) return;d.el.classList.remove('on');scDrag=null;scLupe()};
+$('scwrap').addEventListener('pointerup',scEnd);
+$('scwrap').addEventListener('pointercancel',scEnd);
+addEventListener('resize',scLayout);
+$('scx').onclick=()=>{scHide();if(!rc)rcClear()};
+$('scrot').onclick=()=>{const s=rcSrc;if(!s) return;s.rot=(s.rot+90)%360;s.quad=scRotQuad(s.quad);scOpen()};
+$('scall').onclick=()=>{const s=rcSrc;if(!s) return;s.quad=SC_FULL();s.touched=true;scMsg();scDraw()};
+$('scauto').onclick=()=>{const s=rcSrc;if(!s) return;s.quad=null;scOpen()};
+$('scok').onclick=()=>{
+  const s=rcSrc;if(!s||rcBusy) return;
+  if(!scQuadOk(s.quad)){$('scmsg').textContent='המסגרת לא תקינה. סדרו את הנקודות כך שיקיפו את הקבלה.';return}
+  scHide();rcScan();
+};
+$('rcrescan').onclick=()=>{if(!rcBusy&&rcSrc)scOpen()};
+/* הסריקה בגודל מלא, עם הגדלה */
+function zvOpen(src){if(!src) return;$('zvimg').src=src;$('zv').classList.remove('big');$('zvz').textContent='הגדלה';$('zv').hidden=false;$('zvs').scrollTop=0}
+function zvClose(){$('zv').hidden=true;$('zvimg').removeAttribute('src')}
+const zvZoom=()=>{const b=$('zv').classList.toggle('big');$('zvz').textContent=b?'הקטנה':'הגדלה'};
+$('zvx').onclick=zvClose;$('zvz').onclick=zvZoom;$('zvimg').onclick=zvZoom;
+$('rcimg').onclick=()=>zvOpen(rcUrl);
+$('rvimg').onclick=()=>zvOpen($('rvimg').getAttribute('src'));
+
+/* הסריקה והקריאה: מיישרים ומחדדים לפי המסגרת, שומרים את הסריקה כתמונת הקבלה, וקוראים ממנה */
+async function rcScan(){
+  const s=rcSrc;if(!s||rcBusy) return;
+  rcReset(); const my=rcSeq; rcBusy=true;
+  $('rcwork').hidden=false; rcProg('מיישר ומחדד את הסריקה...',.04);
+  try{
+    await new Promise(r=>setTimeout(r,40)); /* נותנים למסך להתעדכן לפני העבודה הכבדה */
+    let sc=null;
+    /* אם הדפדפן לא הצליח להקצות זיכרון (הסריקה יצאה ריקה), מנסים שוב בגודל קטן יותר */
+    for(const cap of [9.2e6,4.5e6]){
+      try{sc=scScan(s.img,s.quad,s.rot,{cap})}catch(e){sc=null}
+      if(sc&&!sc.blank) break;
+      if(sc&&cap>5e6){freeCv(sc.canvas);sc=null}
+    }
+    if(!sc){flash('לא ניתן לעבד את התמונה. נסו לצלם שוב');rcClear();return}
+    let blob=await new Promise(r=>sc.canvas.toBlob(r,'image/jpeg',0.75));
+    if(blob&&blob.size>3.6e6) blob=await new Promise(r=>sc.canvas.toBlob(r,'image/jpeg',0.5));
+    if(!blob||my!==rcSeq){freeCv(sc.canvas);if(!blob){flash('לא ניתן לעבד את התמונה');rcClear()}return}
     rcUrl=URL.createObjectURL(blob); $('rcimg').src=rcUrl;
     rc={blob,guess:null,key:''};
-    let p=null,failed=false;
-    try{p=await ocrReceipt(rcv,()=>{rcPass=2;rcProg('בודק שוב כדי לדייק...',.4)})}catch(e){failed=true}
-    rcPass=1;
+    $('rcrescan').hidden=false;
+    let p=null,failed=false;const t0=Date.now();
+    try{p=await ocrReceipt(sc.canvas,()=>scScan(s.img,s.quad,s.rot,{plain:true,cap:4.5e6}))}catch(e){failed=true}
+    const note=`סריקה ${sc.w}×${sc.h}, קריאה ${Math.max(1,Math.round((Date.now()-t0)/1000))} שניות`;
+    freeCv(sc.canvas);
     if(my!==rcSeq) return;
-    rcFill(p,failed);
+    rcFill(p,failed); $('rcnote').textContent=note;
   }finally{rcBusy=false}
 }
 function rcFill(p,failed){
@@ -1877,16 +2402,16 @@ $('rvread').onclick=async()=>{
   try{
     let blob;
     try{blob=await (await fetch($('rvimg').src)).blob()}catch(e){st('לא ניתן לקרוא את התמונה מהאחסון. צלמו את הקבלה שוב');return}
-    const img=await loadImg(blob),w=await getWorker();
-    await w.setParameters({tessedit_pageseg_mode:'6'});
-    const rcv=receiptCanvases(img),total=+cur.a||0;
-    let r=await w.recognize(rcv.main()),it=parseItems(r.data.text,total);
-    /* הפריטים לא מסתכמים לסכום הקבלה השמור: ניסיון נוסף בעיבוד אחר, ובוחרים את המדויק יותר */
-    if(total>0&&Math.abs(total-it.sum)>=0.01){
-      st('בודק שוב כדי לדייק...');
-      const r2=await w.recognize(rcv.second()),it2=parseItems(r2.data.text,total);
-      if(it2.items.length&&(!it.items.length||Math.abs(total-it2.sum)<Math.abs(total-it.sum))) it=it2;
-    }
+    const img=await loadImg(blob),w=await getWorker(),total=+cur.a||0;
+    /* אותו סורק כמו בצילום חדש: בידוד הקבלה מהרקע, יישור וחידוד. תמונה שכבר נסרקה נשארת כמו שהיא */
+    let det={ok:false,quad:SC_FULL()};
+    try{const v=scView(img,0,1280);det=scDetect(v);freeCv(v)}catch(e){}
+    const run=async quad=>{
+      const sc=scScan(img,quad,0);if(!sc) return {items:[],sum:0};
+      try{return parseItems(await ocrText(w,sc.canvas),total)}finally{freeCv(sc.canvas)}
+    };
+    let it=await run(det.quad);
+    if(!it.items.length&&det.ok){st('מנסה שוב על כל התמונה...');it=await run(SC_FULL())}
     if(!rvCur||rvCur.id!==cur.id) return;
     if(!it.items.length){st('לא זיהיתי פריטים בתמונה. אפשר להוסיף שורות ידנית.');return}
     rvBox.set(it.items); $('rvisave').hidden=false;
