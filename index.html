@@ -138,7 +138,11 @@ small,.hint{color:var(--muted);font-size:.85rem}
 .it input[data-f="price"]:placeholder-shown{border-color:var(--bad)}
 .it input[data-f="qty"],.it input[data-f="price"]{direction:ltr;text-align:center}
 .it .x{padding:6px 0;width:100%;line-height:1}
-.it tr.cm td{padding:0 4px 8px;font-size:.8rem;line-height:1.35}
+.it tr.cm td,.it tr.iu td{padding:0 4px 8px;font-size:.8rem;line-height:1.35}
+.it tr.iu td{color:var(--muted)}
+.it .nw{white-space:nowrap}
+.it tr.iu+tr.cm td{margin-top:-4px}
+.it tr.iu+tr.r td,.it tr.iu+tr.cm+tr.r td{padding-top:2px}
 .it tr.cm+tr.r td{padding-top:2px}
 .up{color:var(--bad)}
 .dn{color:var(--accent)}
@@ -1400,7 +1404,7 @@ function loadItems(force){
 }
 async function saveItems(txId,list,meta){
   if(!list.length) return true;
-  const rows=list.map((x,i)=>({tx_id:txId,store:meta.store||'',name:x.name.slice(0,120),key:nameKey(x.name),qty:Math.min(9999,Math.max(0.001,x.qty||1)),price:x.price,t:meta.t,cat:meta.cat,by_name:meta.by||null,del:false,pos:i}));
+  const rows=list.map((x,i)=>({tx_id:txId,store:meta.store||'',name:x.name.slice(0,120),key:nameKey(x.name),qty:Math.min(9999,Math.max(0.001,x.qty||1)),price:x.price,off:x.off>0&&!x.disc?Math.round(x.off*100)/100:0,t:meta.t,cat:meta.cat,by_name:meta.by||null,del:false,pos:i}));
   const {error}=await sb.from('receipt_items').insert(rows);
   itemsDirty=true;
   return !error;
@@ -1415,20 +1419,34 @@ function cmpNote(c,store){
 }
 function ItemsBox(root,opt){
   let rows=[];
-  root.innerHTML=`<table class="it" hidden><colgroup><col><col style="width:46px"><col style="width:76px"><col style="width:34px"></colgroup><thead><tr><th>פריט</th><th>כמות</th><th>מחיר</th><th></th></tr></thead><tbody></tbody></table><p class="hint ie" hidden></p><div class="iact"><button type="button" class="lb" data-act="add">הוספת שורה</button></div><div class="isum" aria-live="polite"></div>`;
+  root.innerHTML=`<table class="it" hidden><colgroup><col><col style="width:60px"><col style="width:76px"><col style="width:34px"></colgroup><thead><tr><th>פריט</th><th>כמות</th><th>מחיר</th><th></th></tr></thead><tbody></tbody></table><p class="hint ie" hidden></p><div class="iact"><button type="button" class="lb" data-act="add">הוספת שורה</button></div><div class="isum" aria-live="polite"></div>`;
   const tb=root.querySelector('tbody'),tbl=root.querySelector('table'),emp=root.querySelector('.ie'),sum=root.querySelector('.isum');
   const dirty=v=>{if(opt.onChange)opt.onChange(v)};
-  const model=x=>({name:String(x.name||''),qty:(x.qty>0&&x.qty!==1)?String(x.qty):'1',price:x.price==null||isNaN(x.price)?'':(+x.price).toFixed(2),disc:!!x.disc});
+  const model=x=>({name:String(x.name||''),qty:(x.qty>0&&x.qty!==1)?String(x.qty):'1',price:x.price==null||isNaN(x.price)?'':(+x.price).toFixed(2),disc:!!x.disc,off:Number(x.off)>0?Number(x.off):0});
   function draw(){
-    tb.innerHTML=rows.map((r,i)=>`<tr class="r" data-i="${i}"><td><input data-f="name" dir="auto" value="${esc(r.name)}" autocomplete="off" aria-label="שם הפריט"></td><td><input data-f="qty" inputmode="decimal" value="${esc(r.qty)}" autocomplete="off" aria-label="כמות"></td><td><input data-f="price" inputmode="decimal" value="${esc(r.price)}" placeholder="?" autocomplete="off" aria-label="מחיר"></td><td><button type="button" class="lb x" aria-label="מחיקת השורה">×</button></td></tr><tr class="cm" data-i="${i}" hidden><td colspan="4"></td></tr>`).join('');
+    tb.innerHTML=rows.map((r,i)=>`<tr class="r" data-i="${i}"><td><input data-f="name" dir="auto" value="${esc(r.name)}" autocomplete="off" aria-label="שם הפריט"></td><td><input data-f="qty" inputmode="decimal" value="${esc(r.qty)}" autocomplete="off" aria-label="כמות"></td><td><input data-f="price" inputmode="decimal" value="${esc(r.price)}" placeholder="?" autocomplete="off" aria-label="מחיר"></td><td><button type="button" class="lb x" aria-label="מחיקת השורה">×</button></td></tr><tr class="iu" data-i="${i}" hidden><td colspan="4"></td></tr><tr class="cm" data-i="${i}" hidden><td colspan="4"></td></tr>`).join('');
     tbl.hidden=!rows.length;
     emp.hidden=!!rows.length; emp.textContent=opt.emptyText||'לא נמצאו פריטים.';
   }
-  const list=()=>rows.map(r=>{const q=numOf(r.qty);return {name:r.name.trim(),qty:q>0?q:1,price:numOf(r.price),disc:r.disc}});
+  const list=()=>rows.map(r=>{const q=numOf(r.qty);return {name:r.name.trim(),qty:q>0?q:1,price:numOf(r.price),disc:r.disc,off:r.off||0}});
+  /* מתחת לכל פריט: מחיר ליחידה (או לק"ג), ואם הייתה הנחה: המחיר לפני ההנחה, ההנחה ואחוז ההנחה */
+  const unitNote=x=>{
+    if(x.disc||!(x.price>0)) return '';
+    const kg=!Number.isInteger(x.qty),per=kg?'לק"ג':'ליחידה',parts=[];
+    if(x.qty!==1) parts.push(`<b>${bd(money2(x.price/x.qty))}</b> ${per}`);
+    if(x.off>0){
+      const full=x.price+x.off,pct=Math.round(x.off/full*100);
+      parts.push(`לפני הנחה ${bd(money2(full))}${x.qty!==1?` (${bd(money2(full/x.qty))} ${per})`:''}`);
+      parts.push(`<span class="dn">הנחה ${bd(money2(x.off))}${pct>0?` (${pct}%)`:''}</span>`);
+    }
+    return parts.map(p=>`<span class="nw">${p}</span>`).join(' · ');
+  };
   function refresh(){
     const ctx=opt.getCtx(),L=list(),store=ctx.store||'',food=ctx.cat==='מזון';
     const cr=food&&priceCl.length?compareReceipt(L,store,priceCl,ctx.exclude||null):null;
     rows.forEach((r,i)=>{
+      const tu=root.querySelector(`tr.iu[data-i="${i}"]`);
+      if(tu){const h=unitNote(L[i]);tu.firstChild.innerHTML=h;tu.hidden=!h}
       const tr=root.querySelector(`tr.cm[data-i="${i}"]`); if(!tr) return;
       const h=cr?cmpNote(cr.rows[i],store):''; tr.firstChild.innerHTML=h; tr.hidden=!h;
     });
@@ -1436,6 +1454,9 @@ function ItemsBox(root,opt){
     if(!valid.length){sum.innerHTML='';return}
     const total=r2(valid.reduce((s,x)=>s+x.price,0));
     let h=`<div class="srow"><span>סכום הפריטים</span><b>${money2(total)}</b></div>`;
+    /* סך ההנחות: הנחות שהוצמדו לפריטים, ושורות הנחה נפרדות */
+    const offs=r2(valid.reduce((s,x)=>s+(x.disc?(x.price<0?-x.price:0):(x.off||0)),0));
+    if(offs>0) h+=`<div class="srow"><span>לפני הנחות</span><b>${money2(r2(total+offs))}</b></div><div class="srow"><span>סך ההנחות בקבלה</span><b class="dn">${money2(offs)}</b></div>`;
     if(ctx.total>0){
       h+=`<div class="srow"><span>סכום הקבלה</span><b>${money2(ctx.total)}</b></div>`;
       const d=r2(ctx.total-total);
@@ -2360,12 +2381,12 @@ const rvBox=ItemsBox($('rvitems'),{
 });
 async function rvLoadItems(id){
   const my=++rvSeq;
-  const q=await sb.from('receipt_items').select('id,name,qty,price,store,pos').eq('tx_id',id).order('pos',{ascending:true});
+  const q=await sb.from('receipt_items').select('id,name,qty,price,off,store,pos').eq('tx_id',id).order('pos',{ascending:true});
   if(my!==rvSeq||!rvCur||rvCur.id!==id) return;
   if(q.error){$('rvist').textContent='לא ניתן לטעון את פירוט הפריטים';return}
   rvCur.itemIds=q.data.map(x=>x.id);
   rvCur.store=(q.data[0]&&q.data[0].store)||storeOf(rvCur.n||'');
-  rvBox.set(q.data.map(x=>({name:x.name,qty:Number(x.qty),price:Number(x.price),disc:Number(x.price)<0})));
+  rvBox.set(q.data.map(x=>({name:x.name,qty:Number(x.qty),price:Number(x.price),off:Number(x.off)||0,disc:Number(x.price)<0})));
   $('rvisave').hidden=true;
   await loadItems();
   if(my===rvSeq&&rvCur&&rvCur.id===id) rvBox.refresh();
