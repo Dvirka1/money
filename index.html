@@ -128,6 +128,39 @@ small,.hint{color:var(--muted);font-size:.85rem}
 .alts:empty{display:none}
 .dup{background:var(--chip);border:1px solid var(--line);border-radius:12px;padding:12px;margin:0 0 12px;font-size:.92rem}
 .dup .lb{margin-top:8px}
+.itbox{margin:0 0 14px}
+.itbox h3{margin:0 0 4px;font-size:.98rem;font-weight:700}
+.it{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:8px}
+.it th{font-size:.78rem;font-weight:500;color:var(--muted);text-align:right;padding:0 2px 4px}
+.it td{padding:0 2px 6px;vertical-align:middle}
+.it input{width:100%;min-width:0;font:500 1rem 'Heebo',sans-serif;color:var(--ink);background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:7px 6px;text-overflow:ellipsis}
+.it input:focus{outline:0;border-color:var(--accent)}
+.it input[data-f="qty"],.it input[data-f="price"]{direction:ltr;text-align:center}
+.it .x{padding:6px 0;width:100%;line-height:1}
+.it tr.cm td{padding:0 4px 8px;font-size:.8rem;line-height:1.35}
+.it tr.cm+tr.r td{padding-top:2px}
+.up{color:var(--bad)}
+.dn{color:var(--accent)}
+.isum{margin-top:10px}
+.srow{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:.92rem}
+.srow b{white-space:nowrap}
+.isum p{margin:6px 0 0;font-size:.85rem}
+.isum .warn{color:var(--bad)}
+.isum .good{color:var(--accent)}
+.cmpbox{background:var(--chip);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:12px}
+.cmpbox>b{display:block}
+.cmpbox ul{margin:8px 0 0;padding:0 18px 0 0;font-size:.88rem;line-height:1.5}
+.iact{margin-top:4px}
+.pr{padding:10px 0;border-top:1px solid var(--line)}
+.pr:first-child{border-top:0;padding-top:0}
+.pr .ph{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.pr .pg{white-space:nowrap;font-size:.85rem;color:var(--bad)}
+.pr .pb{font-size:.92rem;margin-top:2px}
+.pr .po{font-size:.82rem;color:var(--muted);margin-top:2px}
+.pt{width:100%;border-collapse:collapse;font-size:.92rem}
+.pt th{font-size:.78rem;font-weight:500;color:var(--muted);text-align:right;padding:0 2px 6px}
+.pt td{padding:6px 2px;border-top:1px solid var(--line)}
+details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-size:.92rem}
 .thumb{width:52px;height:68px;padding:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--chip);cursor:pointer;flex:none}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .rli{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
@@ -245,6 +278,7 @@ small,.hint{color:var(--muted);font-size:.85rem}
 <div id="v-more" hidden>
   <div class="top" style="margin-bottom:16px"><h1>עוד דפים</h1><button class="pill" id="mrback">חזרה</button></div>
   <button class="nav" id="nvrc"><span><b>קבלות</b><small>צילום קבלה וזיהוי אוטומטי של הסכום והקטגוריה</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+  <button class="nav" id="nvpr"><span><b>השוואת מחירים</b><small>באיזו רשת עדיף לקנות כל מוצר, לפי הקבלות שצולמו</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
   <button class="nav" id="nvds"><span><b>מחשבון הנחה</b><small>הנחה של 18%, 20%, 25% או 30% על מחיר</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
 </div>
 
@@ -252,7 +286,7 @@ small,.hint{color:var(--muted);font-size:.85rem}
   <div class="top" style="margin-bottom:16px"><h1>קבלות</h1><button class="pill" id="rcback">חזרה</button></div>
   <section class="card">
     <h2>הוספת קבלה</h2>
-    <p class="hint" style="margin:0 0 12px">מצלמים או בוחרים תמונה של קבלה. האפליקציה קוראת את הסכום, התאריך ובית העסק, מציעה קטגוריה ושומרת את ההוצאה יחד עם התמונה.</p>
+    <p class="hint" style="margin:0 0 12px">מצלמים או בוחרים תמונה של קבלה. האפליקציה קוראת את הסכום, התאריך, בית העסק ופירוט הפריטים, מציעה קטגוריה ושומרת את ההוצאה יחד עם התמונה.</p>
     <div class="fgrid"><button class="btn main" id="rccam">צילום קבלה</button><button class="btn" id="rcgal">בחירה מהגלריה</button></div>
     <input class="vh" id="rcfc" type="file" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true">
     <input class="vh" id="rcff" type="file" accept="image/*" tabindex="-1" aria-hidden="true">
@@ -271,12 +305,35 @@ small,.hint{color:var(--muted);font-size:.85rem}
       <div class="fgrid"><div><small>תאריך</small><input id="rcd" class="txt" type="date"></div><div><small>קטגוריה</small><select id="rcc" class="txt"></select></div></div>
       <div class="dup" id="rcmon" hidden></div>
       <p class="hint" id="rcwhy" style="margin:0 0 12px"></p>
+      <div class="itbox">
+        <h3>פירוט הקבלה</h3>
+        <small>בדקו שהשמות והמחירים נקראו נכון, אפשר לתקן. הפריטים נשמרים עם ההוצאה ומשמשים להשוואת מחירים בין רשתות.</small>
+        <div id="rcitems"></div>
+      </div>
       <div class="dup" id="rcdup" hidden></div>
       <button class="btn main" id="rcsave">שמירה</button>
       <button class="btn" id="rcx" style="width:100%;margin-top:10px">ביטול</button>
     </div>
   </section>
   <section class="card"><h2>קבלות אחרונות</h2><div id="rclist"><p class="empty">עוד אין קבלות.</p></div></section>
+</div>
+
+<div id="v-pr" hidden>
+  <div class="top" style="margin-bottom:16px"><h1>השוואת מחירים</h1><button class="pill" id="prback">חזרה</button></div>
+  <section class="card">
+    <h2>איפה עדיף לקנות</h2>
+    <div id="prsum"></div>
+    <div id="prlist"></div>
+  </section>
+  <section class="card" id="prscard" hidden>
+    <h2>איזו רשת זולה יותר</h2>
+    <div id="prstores"></div>
+  </section>
+  <section class="card" id="proncard" hidden>
+    <h2>מוצרים שנקנו רק ברשת אחת</h2>
+    <div id="prone"></div>
+  </section>
+  <p class="hint">ההשוואה מבוססת על המחיר האחרון בכל רשת, בקבלות מזון מה-120 הימים האחרונים. מוצרים נחשבים זהים לפי השם בקבלה, ולכן כדאי לתקן שמות שנקראו עם טעויות.</p>
 </div>
 
 <div id="v-disc" hidden>
@@ -295,6 +352,12 @@ small,.hint{color:var(--muted);font-size:.85rem}
   <img id="rvimg" alt="תמונת הקבלה" style="width:100%;max-height:50vh;object-fit:contain;background:var(--chip);border-radius:12px;display:block">
   <p class="hint" style="margin:8px 0 2px"><a id="rvfull" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700">פתיחה בגודל מלא</a></p>
   <p class="hint" id="rvinfo" style="margin-bottom:6px"></p>
+  <div class="itbox">
+    <h3>פירוט הקבלה</h3>
+    <div id="rvitems"></div>
+    <p class="hint" id="rvist" style="margin:6px 0 0" aria-live="polite"></p>
+    <div class="fgrid" style="margin-top:8px"><button class="btn" id="rvread" type="button">קריאת הפריטים מהתמונה</button><button class="btn main" id="rvisave" type="button" hidden>שמירת הפירוט</button></div>
+  </div>
   <p class="hint" style="margin-top:0">מחיקת התמונה משאירה את ההוצאה ביומן. מחיקת ההוצאה אפשר לשחזר מהיומן.</p>
   <div class="fgrid"><button class="btn" id="rvimgdel" type="button">מחיקת התמונה בלבד</button><button class="btn" id="rvtxdel" type="button">מחיקת ההוצאה</button></div>
   <button class="btn" id="rvx" style="width:100%;margin-top:10px">סגירה</button>
@@ -439,6 +502,7 @@ async function setDel(id,on){
   const p=on?{del:true,del_by:user,del_t:Date.now()}:{del:false,del_by:null,del_t:null};
   const {error}=await sb.from('tx').update(p).eq('id',id);
   if(error){flash('לא ניתן לעדכן. בדקו חיבור לאינטרנט');return false}
+  sb.from('receipt_items').update({del:!!on}).eq('tx_id',id).then(()=>{itemsDirty=true}); /* הוצאה שנמחקה לא נספרת בהשוואת המחירים */
   await load(); return true;
 }
 async function saveRule(merchant,cat){
@@ -616,13 +680,14 @@ $('edsave').onclick=async()=>{
   const prev=x.prev||{a:x.a,c:x.c,t:x.t,note:x.note||null};
   const {error}=await sb.from('tx').update({a,c,t:nt,note:note||null,edited_by:user,edited_t:Date.now(),prev}).eq('id',x.id);
   if(error){flash('לא ניתן לשמור את השינוי. בדקו חיבור לאינטרנט');return}
+  if(x.receipt&&(c!==x.c||nt!==x.t)){await sb.from('receipt_items').update({cat:c,t:nt}).eq('tx_id',x.id);itemsDirty=true} /* הפירוט עוקב אחרי הקטגוריה והתאריך של ההוצאה */
   closeEdit(); flash('התנועה עודכנה'); await load();
 };
 $('log').addEventListener('click',async e=>{
   const b=e.target.closest('.lb'); if(!b) return;
   const act=b.dataset.act;
   if(act==='edit') return openEdit(b.dataset.id);
-  if(act==='rcp'){const x=tx.find(t=>t.id===b.dataset.id);return openReceipt(b.dataset.p,x?`${x.c}, ${money(x.a)}${x.note?', '+x.note:''}`:'',b.dataset.id)}
+  if(act==='rcp'){const x=tx.find(t=>t.id===b.dataset.id);return openReceipt(b.dataset.p,x?`${x.c}, ${money(x.a)}${x.note?', '+x.note:''}`:'',b.dataset.id,x?{a:x.a,c:x.c,n:x.note||'',t:x.t}:null)}
   const del=act==='del';
   if(await setDel(b.dataset.id,del)) flash(del?'התנועה נמחקה ונשארה ביומן. אפשר לשחזר אותה':'התנועה שוחזרה');
 });
@@ -667,13 +732,14 @@ $('apgrid').addEventListener('click',e=>{const b=e.target.closest('button');if(b
 addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('rv').hidden)closeRv();else if(!$('ed').hidden)closeEdit();else if(!$('ap').hidden)closeAp()}});
 
 /* ---------- settings ---------- */
-const VIEWS={settings:'v-set',more:'v-more',receipts:'v-rc',discount:'v-disc'};
+const VIEWS={settings:'v-set',more:'v-more',receipts:'v-rc',discount:'v-disc',prices:'v-pr'};
 function show(){
   const cur=VIEWS[location.hash.slice(1)]||'v-home';
   $('v-login').hidden=authed;
-  ['v-home','v-set','v-more','v-rc','v-disc'].forEach(id=>{$(id).hidden=!authed||id!==cur});
+  ['v-home','v-set','v-more','v-rc','v-disc','v-pr'].forEach(id=>{$(id).hidden=!authed||id!==cur});
   window.scrollTo(0,0);
-  if(cur==='v-rc'&&authed) loadReceipts();
+  if(cur==='v-rc'&&authed){loadReceipts();loadItems()}
+  if(cur==='v-pr'&&authed) renderPrices();
   if(cur!=='v-rc'&&tw&&!rcBusy){tw.terminate();tw=null} /* משחרר זיכרון של מנוע הקריאה */
 }
 $('gear').onclick=()=>{location.hash='settings'};
@@ -682,6 +748,8 @@ $('morebtn').onclick=()=>{location.hash='more'};
 $('mrback').onclick=()=>{location.hash='home'};
 $('nvrc').onclick=()=>{location.hash='receipts'};
 $('nvds').onclick=()=>{location.hash='discount'};
+$('nvpr').onclick=()=>{location.hash='prices'};
+$('prback').onclick=()=>{location.hash='more'};
 $('rcback').onclick=()=>{location.hash='more'};
 $('dsback').onclick=()=>{location.hash='more'};
 addEventListener('hashchange',show);
@@ -899,6 +967,377 @@ function parseReceipt(raw){
   return {best:best?best.v:null,alts,conf,date,merchant,guess};
 }
 
+/* ---------- פירוט פריטים: פענוח שורות, שמות להשוואה, רשתות והשוואת מחירים ---------- */
+const STORES=[
+ ['שופרסל',['שופרסל','shufersal']],['רמי לוי',['רמי לוי','רמילוי','ramilevy']],['ויקטורי',['ויקטורי','victory']],
+ ['יוחננוף',['יוחננוף','yochananof']],['טיב טעם',['טיב טעם','tivtaam']],['אושר עד',['אושר עד','osherad']],
+ ['חצי חינם',['חצי חינם']],['יינות ביתן',['יינות ביתן','ביתן']],['מגה',['=מגה','=mega']],['קרפור',['קרפור','carrefour']],
+ ['קשת טעמים',['קשת טעמים']],['פרש מרקט',['פרש מרקט','freshmarket']],['סטופ מרקט',['סטופ מרקט','stopmarket']],
+ ['סופר יודה',['סופר יודה']],['שוק העיר',['שוק העיר']],['זול ובגדול',['זול ובגדול']],['נתיב החסד',['נתיב החסד']],
+ ['מחסני השוק',['מחסני השוק']],['AM:PM',['ampm','=אמפם']]
+];
+/* שם הרשת כפי שיוצג וישמש להשוואה: מהמילון, ואם אין, שתי המילים הראשונות של שם בית העסק */
+function storeOf(merchant){
+  const t=String(merchant||''),sq=squash(t),tk=new Set(tokensOf(t));
+  let best=null;
+  STORES.forEach(([n,kws])=>kws.forEach(kw=>{
+    const only=kw[0]==='=',w=only?kw.slice(1):kw,q=squash(w);
+    const ok=only||q.length<4?tk.has(w.toLowerCase()):sq.includes(q);
+    if(ok&&(!best||q.length>best.len)) best={n,len:q.length};
+  }));
+  if(best) return best.n;
+  const ws=tokensOf(t).filter(w=>/[a-zא-ת]/.test(w)&&w.length>1).slice(0,2);
+  return ws.join(' ').slice(0,24);
+}
+
+/* --- שם מוצר להשוואה: מילים, גדלים (גרם/מ"ל), אחוזים --- */
+const FINALS={'ך':'כ','ם':'מ','ן':'נ','ף':'פ','ץ':'צ'};
+const NAME_STOP=new Set(['של','עם','יח','יחידה','יחידות','מארז','אריזה','חדש','מבצע']);
+function nameInfo(name){
+  let s=String(name||'').toLowerCase().replace(BIDI,'').replace(/[״”“"׳’‘´`']/g,'').replace(/[ךםןףץ]/g,c=>FINALS[c]);
+  s=s.replace(/(\d),(\d)/g,'$1.$2');
+  const sizes=[],pct=[];
+  s=s.replace(/(\d+(?:\.\d+)?)\s*%/g,(m,n)=>{pct.push(String(+n));return' '});
+  s=s.replace(/(\d+(?:\.\d+)?)\s*(קילוגרמ|קילו|קג|ליטרימ|ליטר|מיליליטר|מל|גרמ|גר|ג|ל|kg|g|ml|l)(?![א-תa-z])/g,(m,n,u)=>{
+    const v=parseFloat(n);let g;
+    if(/^(קילוגרמ|קילו|קג|kg)$/.test(u)) g=[v*1000,'ג'];
+    else if(/^(ליטרימ|ליטר|ל|l)$/.test(u)) g=[v*1000,'מל'];
+    else if(/^(מיליליטר|מל|ml)$/.test(u)) g=[v,'מל'];
+    else g=[v,'ג'];
+    sizes.push(Math.round(g[0])+g[1]);return' ';
+  });
+  const toks=s.split(/[^0-9a-zא-ת]+/).filter(Boolean);
+  const words=[];
+  toks.forEach(t=>{
+    if(/^\d+$/.test(t)){if(t.length<=3) words.push(t);return}
+    if(t.length<2||NAME_STOP.has(t)) return;
+    if(/^[a-z]{2,3}$/.test(t)&&/[א-ת]/.test(s)) return; /* שאריות קריאה כמו nv או sown בתוך שם בעברית */
+    words.push(t);
+  });
+  return {words,sizes:sizes.sort(),pct:pct.sort()};
+}
+const nameKey=n=>{const i=nameInfo(n);return (i.words.slice().sort().join(' ')+(i.sizes.length?'|'+i.sizes.join(','):'')+(i.pct.length?'|'+i.pct.join(',')+'%':'')).slice(0,160)};
+const bgCache=new Map();
+const bigrams=w=>{let s=bgCache.get(w);if(s)return s;s=new Set();for(let i=0;i<w.length-1;i++)s.add(w.slice(i,i+2));if(bgCache.size>5000)bgCache.clear();bgCache.set(w,s);return s};
+function wordSim(x,y){
+  if(x===y) return 1;
+  if(x.length<4||y.length<4||Math.abs(x.length-y.length)>2||x.charCodeAt(0)<58||y.charCodeAt(0)<58) return 0; /* קצרות מדי, שונות באורך, או מספרים */
+  const A=bigrams(x),B=bigrams(y);let c=0;A.forEach(g=>{if(B.has(g))c++});
+  return 2*c/(A.size+B.size)>=0.8?0.9:0;
+}
+const SIM_MIN=0.66;
+function nameSim(a,b){
+  if(a.sizes.length&&b.sizes.length&&a.sizes.join()!==b.sizes.join()) return 0;
+  if(a.pct.length&&b.pct.length&&a.pct.join()!==b.pct.join()) return 0;
+  const wa=a.words,wb=b.words; if(!wa.length||!wb.length) return 0;
+  const used=new Set();let m=0,full=0;
+  wa.forEach(x=>{let best=0,bj=-1;wb.forEach((y,j)=>{if(used.has(j))return;const s=wordSim(x,y);if(s>best){best=s;bj=j}});if(bj>=0){used.add(bj);m+=best;full++}});
+  const mn=Math.min(wa.length,wb.length);
+  let sc=m/Math.max(wa.length,wb.length);
+  /* שם קצר שכולו מוכל בשם ארוך (למשל "חלב 3%" מול "חלב תנובה 3%") */
+  if(full===mn&&((mn>=2)||(a.pct.length&&a.pct.join()===b.pct.join())||(a.sizes.length&&a.sizes.join()===b.sizes.join()))) sc=Math.max(sc,0.7);
+  return sc;
+}
+
+/* --- פענוח שורות פריטים מהטקסט שהקריאה החזירה --- */
+function parseItems(raw){
+  const text=String(raw||'').replace(BIDI,'').replace(/[״”“]/g,'"').replace(/[׳’‘´`]/g,"'")
+    .replace(/(\d)\s+([.,])\s*(\d{2})(?!\d)/g,'$1$2$3').replace(/(\d)\s*([.,])\s+(\d{2})(?!\d)/g,'$1$2$3');
+  const lines=text.split(/\r?\n/).map(l=>l.replace(/\s+/g,' ').trim()).filter(Boolean);
+  const END=/סה\W{0,2}[כך]|סך\s*הכל|לתשלום|total|subtotal/i;
+  const STOP=/סה\W{0,2}[כך]|סך\s*הכל|לתשלום|total|סיכום|תשלום|שולם|אשראי|ויזה|visa|מאסטר|master|isracard|ישראכרט|כרטיס|מזומן|עודף|מע\W{0,2}מ|\bvat\b|\btax\b|טיפ|\btip\b|אסמכתא|הקצאה|חשבונית|קבלה|invoice|receipt|תאריך|שעה|קופה|קופאי|סניף|כתובת|טל[:.\s]|\btel\b|פקס|ח\W?פ\b|ע\W?מ\b|תודה|להתראות|כמות\s|מחיר\s*ל|משאבה|בליטרים/i;
+  const DISC=/הנח|מבצע|קופון|discount|promo|זיכוי/i;
+  const GENERAL=/מועדון|כללי|סה\W{0,2}כ|חבר/i;
+  const letters=s=>(String(s).match(/[A-Za-zא-ת]/g)||[]).length;
+  const endPrice=ln=>{
+    const m=/(^|[^\d.,])(-?)(\d{1,4})[.,](\d{2})(-?)\s*(?:₪|ש"ח|שח|nis)?\s*$/i.exec(ln);
+    if(!m) return null;
+    return {v:parseFloat(m[3]+'.'+m[4])*((m[2]||m[5])?-1:1),rest:ln.slice(0,m.index+m[1].length).trim()};
+  };
+  const startPrice=ln=>{
+    const m=/^\s*(-?)(\d{1,4})[.,](\d{2})(-?)\s*(?:₪)?\s+(\S.*)$/.exec(ln);
+    return m?{v:parseFloat(m[2]+'.'+m[3])*((m[1]||m[4])?-1:1),rest:m[5].trim()}:null;
+  };
+  const QTY_ONLY=/^\d+(?:[.,]\d{1,3})?\s*(?:יח'?|יחידות|ק"?ג|kg|ליטר|ל')?\s*[xX*×]\s*$/;
+  const QTY_UNIT=/^(\d+(?:[.,]\d{1,3})?)\s*(?:יח'?|יחידות|ק"?ג|kg)?\s*[xX*×]\s*(\d+[.,]\d{2})$/;
+  const cleanName=s=>s.replace(/\b\d{5,}\b/g,' ').replace(/[|:;_~=*#<>\[\]{}]+/g,' ').replace(/^[\s\-.,]+|[\s\-.,]+$/g,'').replace(/\s+/g,' ').trim().slice(0,80);
+  let end=lines.length;
+  for(let i=0;i<lines.length;i++){if(END.test(lines[i])){end=i;break}}
+  const items=[];let pending=null,lastIdx=-9,count=null;
+  for(let i=0;i<lines.length;i++){
+    const ln=lines[i];
+    /* "סה"כ פריטים: 6" (גם כשהמילה "פריטים" נקראה עם טעות) */
+    const cm=/סה\W{0,2}[כך]\s*(?:[א-ת]+|items)?\W{0,3}(\d{1,3})\s*$/i.exec(ln);
+    if(cm&&count==null&&!/לתשלום/.test(ln)&&!/\d[.,]\d/.test(ln)) count=+cm[1];
+    if(i>=end) continue;
+    const isDisc=DISC.test(ln);
+    if(STOP.test(ln)&&!isDisc){pending=null;continue}
+    let pr=endPrice(ln)||startPrice(ln);
+    if(!pr){
+      /* שורה עם שם בלבד: אולי השם של פריט שהמחיר שלו בשורה הבאה (משקל) */
+      pending=letters(ln)>=2&&!isDisc?{name:cleanName(ln),i}:null;
+      continue;
+    }
+    const v=pr.v,rest=pr.rest;
+    if(isDisc){
+      const amt=Math.abs(v);
+      const prev=items[items.length-1];
+      if(prev&&!prev.disc&&lastIdx===i-1&&!GENERAL.test(ln)&&amt<prev.price){prev.price=Math.round((prev.price-amt)*100)/100;prev.off=Math.round(((prev.off||0)+amt)*100)/100}
+      else if(amt>0) items.push({name:'הנחה',qty:1,price:-amt,disc:true});
+      pending=null;lastIdx=i;continue;
+    }
+    if(v<=0||v>=5000){pending=null;continue}
+    /* שורת כמות/משקל: "2 x 5.90" או "0.752 ק"ג x 12.90  9.70" */
+    const qu=QTY_UNIT.exec(rest),qo=QTY_ONLY.test(rest);
+    if(qu||qo||letters(rest)===0){
+      const prev=items[items.length-1];
+      if(qu&&pending&&pending.i===i-1){
+        items.push({name:pending.name,qty:parseFloat(qu[1].replace(',','.'))||1,price:v});lastIdx=i;
+      }else if(qo&&prev&&lastIdx===i-1){
+        const q=parseFloat(rest);const qq=q>0?q:1;
+        if(Math.abs((prev.price+(prev.off||0))-qq*v)<=0.06) prev.qty=qq;
+      }else if(qu&&prev&&lastIdx===i-1&&Math.abs(prev.price-v)<0.01){
+        prev.qty=parseFloat(qu[1].replace(',','.'))||1;
+      }else if(letters(rest)===0&&pending&&pending.i===i-1){
+        items.push({name:pending.name,qty:1,price:v});lastIdx=i;
+      }
+      pending=null;continue;
+    }
+    let name=cleanName(rest),qty=1;
+    /* כמות בתוך השם רק בקצה שלו ("לימונדה x2", "2x לימונדה"): באמצע השם זו כנראה טעות קריאה */
+    let q1=/\s[xX×*]\s?(\d{1,2})$/.exec(name)||/^(\d{1,2})\s?[xX×*]\s/.exec(name);
+    if(q1){qty=+q1[1];name=cleanName(name.replace(q1[0],' '))}
+    if(letters(name)<2){pending=null;continue}
+    items.push({name,qty:qty>0?qty:1,price:v});lastIdx=i;pending=null;
+    if(items.length>=80) break;
+  }
+  const sum=Math.round(items.reduce((s,x)=>s+x.price,0)*100)/100;
+  return {items,sum,count};
+}
+
+/* --- השוואת מחירים בין קבלות --- */
+const CMP_DAYS=120;
+function clusterItems(rows){
+  const lim=Date.now()-CMP_DAYS*864e5;
+  const list=rows.filter(r=>r.store&&r.price>0&&r.qty>0&&r.name&&Number(r.t)>=lim)
+    .map(r=>({tx:r.tx_id,store:r.store,name:r.name,qty:Number(r.qty),price:Number(r.price),t:Number(r.t),u:Number(r.price)/Number(r.qty),info:nameInfo(r.name)}))
+    .filter(r=>r.info.words.length).sort((a,b)=>b.t-a.t);
+  const cl=[];
+  list.forEach(r=>{
+    let best=null,bs=0;
+    cl.forEach(c=>{const s=nameSim(c.info,r.info);if(s>bs){bs=s;best=c}});
+    if(best&&bs>=SIM_MIN) best.rows.push(r); else cl.push({info:r.info,name:r.name,rows:[r]});
+  });
+  return cl;
+}
+/* המחיר האחרון בכל רשת (בלי הקבלה הנוכחית), מהזול ליקר */
+function storePrices(cluster,excludeTx){
+  const by=new Map();
+  cluster.rows.forEach(r=>{if(r.tx!==excludeTx&&!by.has(r.store)) by.set(r.store,r)});
+  return [...by.values()].sort((a,b)=>a.u-b.u);
+}
+function findCluster(clusters,name){
+  const info=nameInfo(name);if(!info.words.length) return null;
+  let best=null,bs=0;
+  clusters.forEach(c=>{const s=nameSim(c.info,info);if(s>bs){bs=s;best=c}});
+  return best&&bs>=SIM_MIN?best:null;
+}
+/* משווה את פריטי הקבלה למחיר הזול ביותר שנרשם בעבר. מחזיר שורה לכל פריט וסיכום עודפים/חיסכון */
+function compareReceipt(items,store,clusters,excludeTx){
+  const rows=items.map(it=>{
+    if(it.disc||!(it.price>0)) return {skip:true};
+    const c=findCluster(clusters,it.name);
+    const sp=c?storePrices(c,excludeTx):[];
+    if(!sp.length) return {none:true};
+    const q=it.qty>0?it.qty:1,u=it.price/q,best=sp[0],diff=Math.round((u-best.u)*100)/100;
+    return {best,diff,q,u,sp};
+  });
+  let over=0,save=0,cmp=0;
+  rows.forEach(r=>{if(r.none||r.skip) return;cmp++;if(r.diff>0.004) over+=r.diff*r.q;else if(r.diff<-0.004) save+=-r.diff*r.q});
+  return {rows,over:Math.round(over*100)/100,save:Math.round(save*100)/100,cmp,total:rows.filter(r=>!r.skip).length};
+}
+/* תובנה לכל מוצר: באיזו רשת הזול ביותר, ומה ההפרש מול היקר ביותר */
+function priceTable(clusters){
+  const out=[];
+  clusters.forEach(c=>{
+    const sp=storePrices(c,null);
+    if(sp.length<2) return;
+    const lo=sp[0],hi=sp[sp.length-1];
+    out.push({name:c.rows[0].name,stores:sp,lo,hi,gap:hi.u-lo.u,pct:lo.u>0?(hi.u-lo.u)/hi.u:0});
+  });
+  return out.sort((a,b)=>b.gap*1-a.gap*1);
+}
+
+/* ---------- טבלת פריטים: בטופס הקבלה ובצופה, עם עודפים והפרשים ---------- */
+const r2=n=>Math.round(n*100)/100;
+const numOf=v=>{const x=parseFloat(String(v==null?'':v).replace(',','.').replace(/[^\d.\-]/g,''));return isFinite(x)?x:NaN};
+const shortDate=t=>new Date(t).toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit'});
+const bd=x=>`<bdi>${x}</bdi>`; /* מספרים וסכומים בתוך משפט בעברית, שלא יתהפכו */
+let itemsCache=null,itemsAt=0,itemsDirty=true,itemsP=null,priceCl=[];
+/* פריטי קבלות המזון (בלי הוצאות שנמחקו) מהחודשים האחרונים, ואיחוד שלהם למוצרים */
+function loadItems(force){
+  if(!sb||!authed) return Promise.resolve(false);
+  if(!force&&!itemsDirty&&itemsCache&&Date.now()-itemsAt<120000) return Promise.resolve(true);
+  if(itemsP) return itemsP;
+  itemsP=(async()=>{
+    try{
+      const since=Date.now()-CMP_DAYS*864e5,rows=[];
+      for(let p=0;p<5;p++){
+        const q=await sb.from('receipt_items').select('tx_id,store,name,qty,price,t').eq('cat','מזון').eq('del',false).gte('t',since).order('t',{ascending:false}).range(p*1000,p*1000+999);
+        if(q.error) return false;
+        rows.push(...q.data); if(q.data.length<1000) break;
+      }
+      itemsCache=rows;priceCl=clusterItems(rows);itemsDirty=false;itemsAt=Date.now();return true;
+    }catch(e){return false}
+    finally{itemsP=null}
+  })();
+  return itemsP;
+}
+async function saveItems(txId,list,meta){
+  if(!list.length) return true;
+  const rows=list.map((x,i)=>({tx_id:txId,store:meta.store||'',name:x.name.slice(0,120),key:nameKey(x.name),qty:Math.min(9999,Math.max(0.001,x.qty||1)),price:x.price,t:meta.t,cat:meta.cat,by_name:meta.by||null,del:false,pos:i}));
+  const {error}=await sb.from('receipt_items').insert(rows);
+  itemsDirty=true;
+  return !error;
+}
+/* שורת ההשוואה מתחת לפריט */
+function cmpNote(c,store){
+  if(!c||c.skip||c.none) return '';
+  const b=c.best,per=c.q!==1?' ליח׳':'',same=b.store===store,d=bd(shortDate(b.t));
+  if(c.diff>0.004) return `<span class="up">יקר ב-${bd(money2(c.diff))}${per} ${same?`מהמחיר שנרשם כאן ב-${d}`:`מהמחיר ב${esc(b.store)}`} (${bd(money2(b.u))}${same?'':' · '+d})</span>`;
+  if(c.diff<-0.004) return `<span class="dn">הכי זול שנרשם: זול ב-${bd(money2(-c.diff))}${per} מ${same?`המחיר שנרשם כאן ב-${d}`:`המחיר ב${esc(b.store)}`} (${bd(money2(b.u))})</span>`;
+  return `<span class="dn">${same?'אותו מחיר כמו בפעם הקודמת':'אותו מחיר כמו הזול ביותר שנרשם, ב'+esc(b.store)}</span>`;
+}
+function ItemsBox(root,opt){
+  let rows=[];
+  root.innerHTML=`<table class="it" hidden><colgroup><col><col style="width:46px"><col style="width:76px"><col style="width:34px"></colgroup><thead><tr><th>פריט</th><th>כמות</th><th>מחיר</th><th></th></tr></thead><tbody></tbody></table><p class="hint ie" hidden></p><div class="iact"><button type="button" class="lb" data-act="add">הוספת שורה</button></div><div class="isum" aria-live="polite"></div>`;
+  const tb=root.querySelector('tbody'),tbl=root.querySelector('table'),emp=root.querySelector('.ie'),sum=root.querySelector('.isum');
+  const dirty=v=>{if(opt.onChange)opt.onChange(v)};
+  const model=x=>({name:String(x.name||''),qty:(x.qty>0&&x.qty!==1)?String(x.qty):'1',price:x.price==null||isNaN(x.price)?'':(+x.price).toFixed(2),disc:!!x.disc});
+  function draw(){
+    tb.innerHTML=rows.map((r,i)=>`<tr class="r" data-i="${i}"><td><input data-f="name" dir="auto" value="${esc(r.name)}" autocomplete="off" aria-label="שם הפריט"></td><td><input data-f="qty" inputmode="decimal" value="${esc(r.qty)}" autocomplete="off" aria-label="כמות"></td><td><input data-f="price" inputmode="decimal" value="${esc(r.price)}" autocomplete="off" aria-label="מחיר"></td><td><button type="button" class="lb x" aria-label="מחיקת השורה">×</button></td></tr><tr class="cm" data-i="${i}" hidden><td colspan="4"></td></tr>`).join('');
+    tbl.hidden=!rows.length;
+    emp.hidden=!!rows.length; emp.textContent=opt.emptyText||'לא נמצאו פריטים.';
+  }
+  const list=()=>rows.map(r=>{const q=numOf(r.qty);return {name:r.name.trim(),qty:q>0?q:1,price:numOf(r.price),disc:r.disc}});
+  function refresh(){
+    const ctx=opt.getCtx(),L=list(),store=ctx.store||'',food=ctx.cat==='מזון';
+    const cr=food&&priceCl.length?compareReceipt(L,store,priceCl,ctx.exclude||null):null;
+    rows.forEach((r,i)=>{
+      const tr=root.querySelector(`tr.cm[data-i="${i}"]`); if(!tr) return;
+      const h=cr?cmpNote(cr.rows[i],store):''; tr.firstChild.innerHTML=h; tr.hidden=!h;
+    });
+    const valid=L.filter(x=>x.name&&x.price===x.price);
+    if(!valid.length){sum.innerHTML='';return}
+    const total=r2(valid.reduce((s,x)=>s+x.price,0));
+    let h=`<div class="srow"><span>סכום הפריטים</span><b>${money2(total)}</b></div>`;
+    if(ctx.total>0){
+      h+=`<div class="srow"><span>סכום הקבלה</span><b>${money2(ctx.total)}</b></div>`;
+      const d=r2(ctx.total-total);
+      h+=Math.abs(d)<0.01?'<p class="good">הפריטים מסתכמים בדיוק בסכום הקבלה.</p>'
+        :d>0?`<p class="warn">בקבלה יש ${money2(d)} יותר מסכום הפריטים. ייתכן שפריט לא נקלט או שמחיר נקרא עם טעות.</p>`
+        :`<p class="warn">סכום הפריטים גבוה ב-${money2(-d)} מסכום הקבלה. ייתכן ששורה נקראה פעמיים או שהנחה לא נקלטה.</p>`;
+    }
+    if(!food){h+='<p class="hint">השוואת מחירים בין רשתות נעשית רק בקבלות מזון.</p>';sum.innerHTML=h;return}
+    if(!cr||!cr.cmp){
+      h+=`<p class="hint">${priceCl.length?'לאף אחד מהפריטים עוד אין מחיר מרשת או מקבלה קודמת להשוואה.':'עוד אין מחירים להשוואה. אחרי שתצלמו קבלות מזון, כאן יופיעו העודפים וההפרשים, והמלצה באיזו רשת עדיף לקנות כל מוצר.'}</p>`;
+      sum.innerHTML=h;return;
+    }
+    const net=r2(cr.save-cr.over);
+    h+=`<div class="cmpbox"><b>עודפים והפרשים</b><small>מול המחיר הנמוך ביותר שנרשם לכל מוצר ב-${CMP_DAYS} הימים האחרונים</small>
+      <div class="srow"><span>עודף: שילמתם יותר מהמחיר הנמוך</span><b class="${cr.over>0?'up':''}">${money2(cr.over)}</b></div>
+      <div class="srow"><span>חיסכון: קניתם בזול יותר מבעבר</span><b class="${cr.save>0?'dn':''}">${money2(cr.save)}</b></div>
+      <div class="srow"><span>הפרש נטו</span><b class="${net>=0?'dn':'up'}">${net===0?money2(0):(net>0?'חסכתם ':'שילמתם יותר ')+money2(Math.abs(net))}</b></div>
+      <small>הושוו ${cr.cmp} מתוך ${cr.total} פריטים. לשאר עוד אין מחיר להשוואה.</small></div>`;
+    /* איפה עדיף לקנות */
+    const there=[],here=[];
+    cr.rows.forEach((c,i)=>{
+      if(c.skip||c.none) return;
+      const it=L[i];
+      if(c.diff>0.004&&c.best.store!==store) there.push({it,c,gain:c.diff*c.q});
+      else if(c.diff<=0.004&&c.sp.some(s=>s.store!==store)) here.push(it.name);
+    });
+    there.sort((a,b)=>b.gain-a.gain);
+    if(there.length||here.length){
+      h+='<div class="cmpbox"><b>איפה עדיף לקנות</b><ul>';
+      there.slice(0,6).forEach(x=>{h+=`<li><b>${esc(x.it.name)}</b>: זול יותר ב${esc(x.c.best.store)} (${bd(money2(x.c.best.u))} במקום ${bd(money2(x.c.u))})</li>`});
+      if(there.length>6) h+=`<li>ועוד ${there.length-6} מוצרים.</li>`;
+      if(here.length) h+=`<li>${store?'ב'+esc(store):'כאן'} הכי משתלם: ${here.slice(0,5).map(esc).join(', ')}${here.length>5?' ועוד':''}</li>`;
+      h+='</ul>';
+      if(there.length) h+=`<div class="srow" style="margin-top:6px"><span>אם הייתם קונים אותם ברשת הזולה</span><b class="dn">חיסכון ${money2(r2(there.reduce((s,x)=>s+x.gain,0)))}</b></div>`;
+      h+='</div>';
+    }
+    sum.innerHTML=h;
+  }
+  root.addEventListener('input',e=>{
+    const el=e.target,tr=el.closest('tr.r'); if(!tr||!el.dataset.f) return;
+    rows[+tr.dataset.i][el.dataset.f]=el.value; dirty(true); refresh();
+  });
+  root.addEventListener('click',e=>{
+    const x=e.target.closest('.x');
+    if(x){const i=+x.closest('tr.r').dataset.i;rows.splice(i,1);draw();refresh();dirty(true);return}
+    if(e.target.closest('[data-act="add"]')){
+      rows.push({name:'',qty:'1',price:'',disc:false});draw();refresh();dirty(true);
+      const inp=tb.querySelector('tr.r:last-of-type input');if(inp)inp.focus();
+    }
+  });
+  return {
+    set(items){rows=(items||[]).map(model);draw();refresh()},
+    get(){return list().filter(x=>x.name&&x.price===x.price&&x.price!==0)},
+    refresh,
+    count(){return rows.length}
+  };
+}
+/* הטבלה בטופס הקבלה */
+const rcItems=ItemsBox($('rcitems'),{
+  getCtx:()=>({total:parseFloat($('rcamt').value)||0,cat:$('rcc').value,store:storeOf($('rcm').value),exclude:null}),
+  emptyText:'לא זיהיתי פריטים בקבלה. אפשר להוסיף שורות ידנית.'
+});
+
+/* ---------- דף השוואת מחירים ---------- */
+async function renderPrices(){
+  const sumEl=$('prsum'),listEl=$('prlist');
+  sumEl.innerHTML='<p class="empty">טוען...</p>';listEl.innerHTML='';$('prscard').hidden=true;$('proncard').hidden=true;
+  const ok=await loadItems(true);
+  if(!ok){sumEl.innerHTML='<p class="empty">לא ניתן לטעון את הנתונים. בדקו חיבור לאינטרנט.</p>';return}
+  const rows=(itemsCache||[]).filter(r=>r.store&&Number(r.price)>0);
+  const receipts=new Set(rows.map(r=>r.tx_id)).size;
+  const table=priceTable(priceCl);
+  if(!rows.length){sumEl.innerHTML='<p class="empty">עוד אין פריטים. צלמו קבלות מזון מכמה רשתות, ובדף הזה יופיע באיזו רשת זול יותר לקנות כל מוצר.</p>';return}
+  /* כמה היו חוסכים בקניות שכבר נעשו, אילו הכול נקנה ברשת הזולה */
+  let paid=0,gain=0;
+  priceCl.forEach(c=>{
+    const sp=storePrices(c,null); if(sp.length<2) return;
+    c.rows.forEach(r=>{paid+=r.price;gain+=Math.max(0,r.u-sp[0].u)*r.qty});
+  });
+  sumEl.innerHTML=`<p class="hint" style="margin:0 0 10px">לפי ${receipts} ${receipts===1?'קבלת מזון':'קבלות מזון'}: ${priceCl.length} מוצרים, ו-${table.length} מהם נקנו ביותר מרשת אחת.</p>`+
+    (table.length?`<div class="cmpbox" style="margin:0 0 14px"><b>אם כל מוצר היה נקנה ברשת הזולה</b><div class="srow"><span>חיסכון בקניות שתועדו</span><b class="dn">${money2(r2(gain))}</b></div><small>מתוך ${money2(r2(paid))} שהוצאתם על המוצרים שהושוו (${paid>0?Math.round(gain/paid*100):0}%).</small></div>`:'');
+  if(!table.length){listEl.innerHTML='<p class="empty">עוד אין מוצר שנקנה בשתי רשתות. כשיהיה, יופיע כאן איפה הוא זול יותר.</p>'}
+  else listEl.innerHTML=table.slice(0,40).map(p=>{
+    const others=p.stores.slice(1).map(s=>`${esc(s.store)} ${money2(s.u)}`).join(' · ');
+    return `<div class="pr"><div class="ph"><b>${esc(p.name)}</b><span class="pg">פער ${money2(p.gap)} (${Math.round(p.pct*100)}%)</span></div><div class="pb dn">הכי זול ב<b>${esc(p.lo.store)}</b>: ${money2(p.lo.u)} <small>(${shortDate(p.lo.t)})</small></div><div class="po">${others}</div></div>`;
+  }).join('')+(table.length>40?`<p class="hint" style="margin:8px 0 0">מוצגים 40 הפערים הגדולים מתוך ${table.length}.</p>`:'');
+  /* לוח רשתות */
+  const st=new Map();
+  table.forEach(p=>p.stores.forEach(s=>{
+    const o=st.get(s.store)||{n:0,cheap:0,prem:0};
+    o.n++;if(s===p.lo)o.cheap++;o.prem+=(s.u-p.lo.u)/p.lo.u;st.set(s.store,o);
+  }));
+  if(st.size>=2){
+    const arr=[...st.entries()].map(([s,o])=>({s,...o,avg:o.prem/o.n})).sort((a,b)=>a.avg-b.avg||b.cheap-a.cheap);
+    $('prstores').innerHTML=`<p class="hint" style="margin:0 0 8px">${esc(arr[0].s)} יצאה הזולה ביותר במוצרים שהושוו: בממוצע ${Math.round(arr[0].avg*100)}% מעל המחיר הנמוך.</p><table class="pt"><thead><tr><th>רשת</th><th>מוצרים שהושוו</th><th>הכי זולה ב</th><th>יקרה מהזול ב</th></tr></thead><tbody>${arr.map(o=>`<tr><td><b>${esc(o.s)}</b></td><td>${o.n}</td><td>${o.cheap}</td><td>${Math.round(o.avg*100)}%</td></tr>`).join('')}</tbody></table>`;
+    $('prscard').hidden=false;
+  }
+  /* מוצרים שנקנו רק ברשת אחת */
+  const one=priceCl.filter(c=>storePrices(c,null).length===1);
+  if(one.length){
+    const by=new Map();
+    one.forEach(c=>{const s=storePrices(c,null)[0];(by.get(s.store)||by.set(s.store,[]).get(s.store)).push(c.rows[0].name)});
+    $('prone').innerHTML=`<details class="more"><summary>${one.length} מוצרים</summary>${[...by.entries()].map(([s,n])=>`<p style="margin:10px 0 0"><b>${esc(s)}</b><br><small>${n.slice(0,30).map(esc).join(', ')}${n.length>30?' ועוד':''}</small></p>`).join('')}</details>`;
+    $('proncard').hidden=false;
+  }
+}
+
 /* --- הכנת התמונה לקריאה: גווני אפור, תיקון צל ותאורה לא אחידה, מתיחת ניגודיות --- */
 function loadImg(file){
   return new Promise((res,rej)=>{
@@ -977,13 +1416,15 @@ const rank={none:0,low:1,mid:2,high:3};
 async function ocrReceipt(canvas){
   const w=await getWorker();
   await w.setParameters({tessedit_pageseg_mode:'6'});
-  let r=await w.recognize(canvas),p=parseReceipt(r.data.text);
+  let r=await w.recognize(canvas),p=parseReceipt(r.data.text),it=parseItems(r.data.text);
   if(rank[p.conf]<2){ /* לא נמצאה שורת סיכום: ניסיון שני בפריסת טקסט מפוזרת */
     await w.setParameters({tessedit_pageseg_mode:'11'});
     r=await w.recognize(canvas);
     const p2=parseReceipt(r.data.text);
     if(rank[p2.conf]>rank[p.conf]) p=p2;
+    if(!it.items.length){const it2=parseItems(r.data.text);if(it2.items.length) it=it2}
   }
+  p.items=it.items;
   return p;
 }
 
@@ -992,7 +1433,7 @@ let rc=null,rcSeq=0,rcSeq0=0,rcUrl=null;
 const todayStr=()=>{const n=new Date();return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate())};
 function rcProg(msg,f){$('rcst').textContent=msg;$('rcbar').style.width=Math.round(Math.max(0,Math.min(1,f))*100)+'%'}
 function rcClear(){
-  rc=null;rcSeq++;$('rcwork').hidden=true;$('rcform').hidden=true;$('rcdup').hidden=true;
+  rc=null;rcSeq++;$('rcwork').hidden=true;$('rcform').hidden=true;$('rcdup').hidden=true;rcItems.set([]);
   if(rcUrl){URL.revokeObjectURL(rcUrl);rcUrl=null}
   $('rcimg').removeAttribute('src');$('rcfc').value='';$('rcff').value='';
 }
@@ -1043,11 +1484,14 @@ function rcFill(p,failed){
     if(!p.date) why.push('לא זיהיתי תאריך, נבחר היום.');
   }
   $('rcwhy').innerHTML=why.map(esc).join('<br>');
+  rcItems.set(p.items||[]);
+  loadItems().then(()=>{if(rc)rcItems.refresh()}); /* מחירים קודמים להשוואה */
   rcSync(); rcDupSoon();
 }
 function rcSync(){
   const a=parseFloat($('rcamt').value),c=$('rcc').value;
   $('rcsave').textContent=a>0&&c?`שמירה ב${c}, ${money2(a)}`:'שמירה';
+  if(rc) rcItems.refresh(); /* הסכום, הקטגוריה והרשת משפיעים על ההשוואה */
 }
 $('rccam').onclick=()=>{if(!rcBusy)$('rcfc').click()};
 $('rcgal').onclick=()=>{if(!rcBusy)$('rcff').click()};
@@ -1056,6 +1500,7 @@ $('rcff').addEventListener('change',e=>rcStart(e.target.files[0]));
 $('rcx').onclick=rcClear;
 $('rcamt').addEventListener('input',()=>{clean($('rcamt'));rcSync();rcDupSoon()});
 $('rcc').addEventListener('change',rcSync);
+$('rcm').addEventListener('input',()=>{if(rc)rcItems.refresh()});
 $('rcd').addEventListener('change',()=>{rcMon();rcDupSoon()});
 $('rcusr').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setUser(b.dataset.u)});
 /* אם התאריך בקבלה הוא של חודש אחר, ההוצאה לא תופיע ביומן של החודש הנוכחי: אומרים את זה לפני השמירה */
@@ -1111,12 +1556,16 @@ $('rcsave').onclick=async()=>{
   let path=null;
   try{
     try{path=await rcUpload()}catch(e){flash('לא ניתן להעלות את התמונה. בדקו חיבור לאינטרנט');return}
-    const ok=await addTx({type:'e',a,c,t:isToday?Date.now():new Date(Y,M-1,D,12).getTime(),note:merchant,receipt:path});
+    const when=isToday?Date.now():new Date(Y,M-1,D,12).getTime();
+    const ok=await addTx({type:'e',a,c,t:when,note:merchant,receipt:path});
     if(!ok){sb.storage.from('receipts').remove([path]);return}
+    const txId=last;
     const g=rc.guess,key=(g&&g.hit)||merchant;
     if(key&&(!g||g.c!==c)) await saveRule(key,c);
+    const li=rcItems.get();
+    const itemsOk=await saveItems(txId,li,{store:storeOf(merchant),cat:c,t:when,by:user});
     const now=new Date(),other=!(Y===now.getFullYear()&&M-1===now.getMonth());
-    flash(`נשמרו ${money(a)} ב${c}, עם תמונת הקבלה`+(other?`. התאריך ${D}/${M}/${Y}, ולכן ההוצאה נמצאת ב${monName(Y,M)}`:''),true);
+    flash(`נשמרו ${money(a)} ב${c}, עם תמונת הקבלה`+(li.length&&itemsOk?` ו-${li.length} פריטים`:'')+(other?`. התאריך ${D}/${M}/${Y}, ולכן ההוצאה נמצאת ב${monName(Y,M)}`:'')+(li.length&&!itemsOk?'. פירוט הפריטים לא נשמר, אפשר לנסות שוב מהקבלות האחרונות':''),true);
     rcClear(); loadReceipts();
   }finally{rcSaving=false;$('rcsave').disabled=false}
 };
@@ -1128,7 +1577,10 @@ $('rcdup').addEventListener('click',async e=>{
     try{path=await rcUpload()}catch(err){flash('לא ניתן להעלות את התמונה. בדקו חיבור לאינטרנט');return}
     const {error}=await sb.from('tx').update({receipt:path}).eq('id',b.dataset.id);
     if(error){sb.storage.from('receipts').remove([path]);flash('לא ניתן לצרף את הקבלה. בדקו חיבור לאינטרנט');return}
-    flash(`הקבלה צורפה להוצאה הקיימת (${b.dataset.i}). לא נוספה הוצאה חדשה`); rcClear(); await load(); loadReceipts();
+    const li=rcItems.get(),ex=(rc.dup||[]).find(d=>d.id===b.dataset.id);
+    let itemsOk=true;
+    if(li.length&&ex) itemsOk=await saveItems(ex.id,li,{store:storeOf($('rcm').value||ex.note||''),cat:ex.c,t:Number(ex.t),by:user});
+    flash(`הקבלה צורפה להוצאה הקיימת (${b.dataset.i}). לא נוספה הוצאה חדשה`+(li.length&&ex?(itemsOk?`. נשמרו ${li.length} פריטים`:'. פירוט הפריטים לא נשמר'):'')); rcClear(); await load(); loadReceipts();
   }finally{rcSaving=false;b.disabled=false}
 });
 
@@ -1149,19 +1601,76 @@ async function loadReceipts(){
   $('rclist').innerHTML=rows.map(r=>{
     const d=new Date(Number(r.t)),when=d.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit'});
     const info=`${r.c}, ${money2(Number(r.a))}${r.note?', '+r.note:''}`;
-    return `<div class="rli"><button class="thumb" type="button" data-p="${esc(r.receipt)}" data-id="${esc(r.id)}" data-i="${esc(info)}" aria-label="פתיחת תמונת הקבלה">${urls[r.receipt]?`<img src="${esc(urls[r.receipt])}" alt="" loading="lazy">`:''}</button><div><b>${esc(r.c)}</b> ${money2(Number(r.a))}<br><small>${esc(r.note||'')}${r.note?', ':''}${when}${r.by_name?', '+esc(r.by_name):''}</small></div></div>`;
+    return `<div class="rli"><button class="thumb" type="button" data-p="${esc(r.receipt)}" data-id="${esc(r.id)}" data-i="${esc(info)}" data-a="${Number(r.a)}" data-c="${esc(r.c)}" data-n="${esc(r.note||'')}" data-t="${Number(r.t)}" aria-label="פתיחת תמונת הקבלה">${urls[r.receipt]?`<img src="${esc(urls[r.receipt])}" alt="" loading="lazy">`:''}</button><div><b>${esc(r.c)}</b> ${money2(Number(r.a))}<br><small>${esc(r.note||'')}${r.note?', ':''}${when}${r.by_name?', '+esc(r.by_name):''}</small></div></div>`;
   }).join('');
 }
-$('rclist').addEventListener('click',e=>{const b=e.target.closest('.thumb');if(b)openReceipt(b.dataset.p,b.dataset.i,b.dataset.id)});
-let rvCur=null,rvArm=false,rvTimer=null;
+$('rclist').addEventListener('click',e=>{const b=e.target.closest('.thumb');if(b)openReceipt(b.dataset.p,b.dataset.i,b.dataset.id,{a:Number(b.dataset.a),c:b.dataset.c,n:b.dataset.n,t:Number(b.dataset.t)})});
+let rvCur=null,rvArm=false,rvTimer=null,rvSeq=0;
 function rvReset(){clearTimeout(rvTimer);rvArm=false;$('rvimgdel').textContent='מחיקת התמונה בלבד'}
-function closeRv(){$('rv').hidden=true;$('rvimg').removeAttribute('src');rvCur=null;rvReset()}
-async function openReceipt(path,info,id){
+function closeRv(){rvSeq++;$('rv').hidden=true;$('rvimg').removeAttribute('src');rvCur=null;rvReset();rvBox.set([]);$('rvist').textContent='';$('rvisave').hidden=true}
+/* פירוט הפריטים בצופה: טעינה, עריכה ושמירה */
+const rvBox=ItemsBox($('rvitems'),{
+  getCtx:()=>rvCur?{total:rvCur.a||0,cat:rvCur.c||'',store:rvCur.store||'',exclude:rvCur.id}:{total:0,cat:'',store:'',exclude:null},
+  onChange:d=>{$('rvisave').hidden=!d},
+  emptyText:'אין פירוט פריטים לקבלה הזו. אפשר לקרוא אותו מהתמונה או להוסיף שורות ידנית.'
+});
+async function rvLoadItems(id){
+  const my=++rvSeq;
+  const q=await sb.from('receipt_items').select('id,name,qty,price,store,pos').eq('tx_id',id).order('pos',{ascending:true});
+  if(my!==rvSeq||!rvCur||rvCur.id!==id) return;
+  if(q.error){$('rvist').textContent='לא ניתן לטעון את פירוט הפריטים';return}
+  rvCur.itemIds=q.data.map(x=>x.id);
+  rvCur.store=(q.data[0]&&q.data[0].store)||storeOf(rvCur.n||'');
+  rvBox.set(q.data.map(x=>({name:x.name,qty:Number(x.qty),price:Number(x.price),disc:Number(x.price)<0})));
+  $('rvisave').hidden=true;
+  await loadItems();
+  if(my===rvSeq&&rvCur&&rvCur.id===id) rvBox.refresh();
+}
+async function openReceipt(path,info,id,meta){
   const u=(await signedUrls([path]))[path];
   if(!u){flash('לא ניתן לפתוח את התמונה');return}
-  rvCur={path,id}; rvReset(); $('toast').classList.remove('show');
+  meta=meta||{};
+  rvCur={path,id,a:meta.a,c:meta.c,n:meta.n,t:meta.t,store:storeOf(meta.n||''),itemIds:[]}; rvReset(); $('toast').classList.remove('show');
+  rvBox.set([]); $('rvist').textContent=''; $('rvisave').hidden=true;
   $('rvimg').src=u; $('rvfull').href=u; $('rvinfo').textContent=info||''; $('rv').hidden=false;
+  rvLoadItems(id);
 }
+$('rvisave').onclick=async()=>{
+  if(!rvCur||!rvCur.id||rcSaving) return;
+  const cur=rvCur,li=rvBox.get(),old=cur.itemIds.slice();
+  rcSaving=true; $('rvisave').disabled=true;
+  try{
+    const ok=await saveItems(cur.id,li,{store:cur.store||storeOf(cur.n||''),cat:cur.c||'',t:cur.t||Date.now(),by:user});
+    if(!ok){$('rvist').textContent='לא ניתן לשמור את הפירוט. בדקו חיבור לאינטרנט';return}
+    if(old.length) await sb.from('receipt_items').delete().in('id',old); /* מוחקים את הישנות רק אחרי שהחדשות נשמרו */
+    itemsDirty=true;
+    $('rvist').textContent=li.length?`נשמרו ${li.length} פריטים`:'הפירוט נמחק';
+    if(rvCur&&rvCur.id===cur.id) await rvLoadItems(cur.id);
+  }finally{rcSaving=false;$('rvisave').disabled=false}
+};
+/* קריאה מחדש של הפריטים מהתמונה השמורה (לקבלות שנשמרו לפני שהיה פירוט) */
+$('rvread').onclick=async()=>{
+  if(!rvCur||rcBusy) return;
+  const cur=rvCur,prevLog=tessLog; rcBusy=true; $('rvread').disabled=true;
+  const st=t=>{if(rvCur&&rvCur.id===cur.id)$('rvist').textContent=t};
+  st('קורא את הפריטים מהתמונה...');
+  tessLog=m=>{const s=m.status||'';if(s==='loading tesseract core'||s==='loading language traineddata')st('טוען את מנוע הקריאה...');else if(s==='recognizing text')st('קורא את הפריטים מהתמונה... '+Math.round((m.progress||0)*100)+'%')};
+  try{
+    let blob;
+    try{blob=await (await fetch($('rvimg').src)).blob()}catch(e){st('לא ניתן לקרוא את התמונה מהאחסון. צלמו את הקבלה שוב');return}
+    const img=await loadImg(blob),w=await getWorker();
+    await w.setParameters({tessedit_pageseg_mode:'6'});
+    const r=await w.recognize(prepOcr(toCanvas(img,2400))),it=parseItems(r.data.text);
+    if(!rvCur||rvCur.id!==cur.id) return;
+    if(!it.items.length){st('לא זיהיתי פריטים בתמונה. אפשר להוסיף שורות ידנית.');return}
+    rvBox.set(it.items); $('rvisave').hidden=false;
+    st(`נקראו ${it.items.length} פריטים. בדקו אותם ולחצו על "שמירת הפירוט".`);
+  }catch(e){st('הקריאה נכשלה. אפשר להוסיף שורות ידנית')}
+  finally{
+    rcBusy=false;$('rvread').disabled=false;tessLog=prevLog;
+    if(location.hash!=='#receipts'&&tw){tw.terminate();tw=null}
+  }
+};
 $('rvx').onclick=closeRv;
 /* מחיקת התמונה בלבד: הלחיצה הראשונה רק מבקשת אישור, כי אי אפשר לשחזר תמונה שנמחקה */
 $('rvimgdel').onclick=async()=>{
