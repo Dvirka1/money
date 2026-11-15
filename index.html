@@ -27,7 +27,11 @@ main{max-width:480px;margin:0 auto;padding:20px 16px 96px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .pill{font:500 .9rem 'Heebo',sans-serif;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 14px;cursor:pointer;white-space:nowrap}
 .hero{padding:8px 4px 20px}
-#date{color:var(--muted);font-weight:500;font-size:.95rem;text-align:center;margin-top:10px}
+#date{color:var(--muted);font-weight:500;font-size:.88rem;text-align:center;line-height:1.3;min-width:0}
+.hero .top{display:grid;grid-template-columns:minmax(max-content,1fr) minmax(0,auto) minmax(max-content,1fr)}
+.hero .top .tb{justify-self:end}
+.hero .top .menub{justify-self:start}
+#time{margin-top:6px}
 .menub{flex:none;width:44px;height:44px;margin:-4px 0;display:grid;place-items:center;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:12px;cursor:pointer;padding:0}
 .menub:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .tb{flex:none}
@@ -72,6 +76,11 @@ small,.hint{color:var(--muted);font-size:.85rem}
 .bar i.over{background:var(--bad)}
 #pie{display:block;width:min(260px,80%);margin:4px auto 14px}
 .row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:.95rem}
+.row.rb{width:100%;background:none;border-left:0;border-right:0;border-bottom:0;color:inherit;font:inherit;text-align:right;cursor:pointer;min-height:44px}
+.row.rb:hover{background:var(--chip)}
+.row .chev{color:var(--muted);font-size:1.2rem;line-height:1}
+#pie [data-cat],#ct [data-cat]{cursor:pointer}
+#ct .tg:focus-visible,.row.rb:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .row i{width:12px;height:12px;border-radius:4px;flex:none}
 .row .n{flex:1}
 .row .p{color:var(--muted);min-width:42px;text-align:left}
@@ -214,8 +223,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 
 <div id="v-home">
   <section class="hero">
-    <div class="top"><button class="menub" id="morebtn" type="button" aria-label="עוד דפים" title="עוד דפים"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button><div class="tb"><button class="pill" id="gear">הגדרות</button></div></div>
-    <div id="date"></div>
+    <div class="top"><button class="menub" id="morebtn" type="button" aria-label="עוד דפים" title="עוד דפים"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button><div id="date"></div><div class="tb"><button class="pill" id="gear">הגדרות</button></div></div>
     <div id="time"></div>
     <div id="greet"></div>
   </section>
@@ -393,6 +401,11 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
   <div class="zvs" id="zvs"><img id="zvimg" alt="הקבלה בגודל מלא"></div>
 </div>
 
+<div id="cv" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="cvt"><div class="box">
+  <div class="lh"><h2 id="cvt" style="margin:0"></h2><button class="pill sm" id="cvx" type="button">סגירה</button></div>
+  <p class="hint" id="cvs" style="margin:-4px 0 10px"></p>
+  <div id="cvl"></div>
+</div></div>
 <div id="rv" class="sheet" hidden role="dialog" aria-modal="true" aria-label="תמונת קבלה"><div class="box">
   <img id="rvimg" alt="תמונת הקבלה. לחיצה פותחת אותה בגודל מלא" style="width:100%;max-height:50vh;object-fit:contain;background:var(--chip);border-radius:12px;display:block;cursor:zoom-in">
   <p class="hint" style="margin:8px 0 2px"><a id="rvfull" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700">פתיחה בגודל מלא</a></p>
@@ -591,9 +604,9 @@ function render(){
   /* יעדים לפי קטגוריה */
   const items=CATS.map((c,i)=>({c,v:sums[i],t:Number(catT[c])||0})).filter(x=>x.t>0).map(x=>({...x,p:x.v/x.t})).sort((a,b)=>b.p-a.p);
   $('ctcard').hidden=!items.length;
-  $('ct').innerHTML=items.map(x=>`<div class="tg"><div class="tt"><span>${esc(x.c)}</span><span>${money(x.v)} מתוך ${money(x.t)}</span></div><div class="bar sm"><i class="${x.v>x.t?'over':''}" style="width:${Math.min(100,x.p*100)}%"></i></div><small class="${x.v>x.t?'neg':''}">${x.v>x.t?'חריגה של '+money(x.v-x.t):'נשארו '+money(x.t-x.v)}</small></div>`).join('');
+  $('ct').innerHTML=items.map(x=>`<div class="tg" data-cat="${esc(x.c)}" role="button" tabindex="0"><div class="tt"><span>${esc(x.c)}</span><span>${money(x.v)} מתוך ${money(x.t)}</span></div><div class="bar sm"><i class="${x.v>x.t?'over':''}" style="width:${Math.min(100,x.p*100)}%"></i></div><small class="${x.v>x.t?'neg':''}">${x.v>x.t?'חריגה של '+money(x.v-x.t):'נשארו '+money(x.t-x.v)}</small></div>`).join('');
 
-  renderRem(); renderLog(tx);
+  renderRem(); renderLog(tx); renderCat();
 
   const used=CATS.map((c,i)=>({c,i,v:sums[i]})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
   const pie=$('pie'),lg=$('legend');
@@ -603,14 +616,14 @@ function render(){
     return;
   }
   let ang=-Math.PI/2,h='';
-  if(used.length===1) h=`<circle r="1" fill="${color(used[0].i)}"/>`;
+  if(used.length===1) h=`<circle r="1" fill="${color(used[0].i)}" data-cat="${esc(used[0].c)}"/>`;
   else used.forEach(x=>{
     const end=ang+x.v/exp*2*Math.PI;
-    h+=`<path d="${arc(ang,end)}" fill="${color(x.i)}" stroke="var(--card)" stroke-width=".02"/>`;
+    h+=`<path d="${arc(ang,end)}" fill="${color(x.i)}" stroke="var(--card)" stroke-width=".02" data-cat="${esc(x.c)}"/>`;
     ang=end;
   });
   pie.innerHTML=h;
-  lg.innerHTML=used.map(x=>`<div class="row"><i style="background:${color(x.i)}"></i><span class="n">${esc(x.c)}</span><span class="p">${Math.round(x.v/exp*100)}%</span><span class="v">${money(x.v)}</span></div>`).join('');
+  lg.innerHTML=used.map(x=>`<button type="button" class="row rb" data-cat="${esc(x.c)}" aria-label="החיובים בקטגוריה ${esc(x.c)}"><i style="background:${color(x.i)}"></i><span class="n">${esc(x.c)}</span><span class="p">${Math.round(x.v/exp*100)}%</span><span class="v">${money(x.v)}</span><span class="chev" aria-hidden="true">›</span></button>`).join('');
 }
 
 /* תזכורות להוראות קבע שלא נוספות אוטומטית */
@@ -675,15 +688,17 @@ function setUser(u){
 $('usr').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setUser(b.dataset.u)});
 
 /* ---------- log: edit / delete / restore ---------- */
-function renderLog(list){
-  const rows=[...list].sort((a,b)=>b.t-a.t);
-  $('log').innerHTML=rows.length?rows.slice(0,logN).map(x=>{
+/* שורה ביומן: משמשת גם ביומן החודש וגם ברשימת החיובים של קטגוריה */
+function logRow(x){
     const d=new Date(x.t),inc=x.type==='i',id=esc(x.id);
     const when=d.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     const rcb=x.receipt?`<button class="lb" data-act="rcp" data-p="${esc(x.receipt)}" data-id="${id}">קבלה</button>`:'';
     const btns=x.del?`<button class="lb" data-act="restore" data-id="${id}">שחזור</button>`:`<button class="lb" data-act="edit" data-id="${id}">עריכה</button>${rcb}<button class="lb" data-act="del" data-id="${id}">מחיקה</button>`;
     return `<div class="lg${x.del?' del':''}"><div class="lt"><b>${esc(x.c)}</b><span class="${inc?'pos':''}">${inc?'+':''}${money(x.a)}</span></div>${x.note?`<small>${esc(x.note)}</small>`:''}<small>${when}${x.by?', נרשם על ידי '+esc(x.by):''}</small>${x.editedBy?`<small>נערך על ידי ${esc(x.editedBy)}${x.prev?`, במקור ${money(x.prev.a)} ב${esc(x.prev.c)}`:''}</small>`:''}${x.del?`<small>נמחק על ידי ${esc(x.delBy)||'לא ידוע'}</small>`:''}<div class="acts">${btns}</div></div>`;
-  }).join(''):`<p class="empty">${busy?'טוען...':'אין תנועות בחודש הזה.'}</p>`;
+  }
+function renderLog(list){
+  const rows=[...list].sort((a,b)=>b.t-a.t);
+  $('log').innerHTML=rows.length?rows.slice(0,logN).map(logRow).join(''):`<p class="empty">${busy?'טוען...':'אין תנועות בחודש הזה.'}</p>`;
   logVis(rows.length,rows.filter(x=>!x.del).length);
 }
 /* hide / show the month log; the choice is remembered on this device */
@@ -728,14 +743,33 @@ $('edsave').onclick=async()=>{
   if(x.receipt&&(c!==x.c||nt!==x.t)){await sb.from('receipt_items').update({cat:c,t:nt}).eq('tx_id',x.id);itemsDirty=true} /* הפירוט עוקב אחרי הקטגוריה והתאריך של ההוצאה */
   closeEdit(); flash('התנועה עודכנה'); await load();
 };
-$('log').addEventListener('click',async e=>{
+async function logClick(e){
   const b=e.target.closest('.lb'); if(!b) return;
   const act=b.dataset.act;
   if(act==='edit') return openEdit(b.dataset.id);
   if(act==='rcp'){const x=tx.find(t=>t.id===b.dataset.id);return openReceipt(b.dataset.p,x?`${x.c}, ${money(x.a)}${x.note?', '+x.note:''}`:'',b.dataset.id,x?{a:x.a,c:x.c,n:x.note||'',t:x.t}:null)}
   const del=act==='del';
   if(await setDel(b.dataset.id,del)) flash(del?'התנועה נמחקה ונשארה ביומן. אפשר לשחזר אותה':'התנועה שוחזרה');
-});
+}
+$('log').addEventListener('click',logClick);
+$('cvl').addEventListener('click',logClick);
+
+/* ---------- החיובים של קטגוריה אחת בחודש המוצג ---------- */
+let cvCat=null;
+function openCat(c){cvCat=c;renderCat();$('cv').hidden=false;$('cvx').focus()}
+function closeCat(){cvCat=null;$('cv').hidden=true}
+function renderCat(){
+  if(cvCat==null) return;
+  const rows=tx.filter(x=>x.type==='e'&&x.c===cvCat).sort((a,b)=>b.t-a.t),live=rows.filter(x=>!x.del);
+  const sum=live.reduce((s,x)=>s+Number(x.a),0),t=Number(catT[cvCat])||0;
+  $('cvt').textContent=cvCat;
+  $('cvs').textContent=(isCur()?'החודש':monthName(viewY,viewM))+': '+(live.length?`${live.length} ${live.length===1?'חיוב':'חיובים'}, סך הכול ${money(sum)}`:'אין חיובים')+(t>0?` · יעד ${money(t)}`:'');
+  $('cvl').innerHTML=rows.length?rows.map(logRow).join(''):'<p class="empty">אין חיובים בקטגוריה הזו בחודש הזה.</p>';
+}
+$('cvx').onclick=closeCat;
+$('cv').addEventListener('click',e=>{if(e.target===$('cv'))closeCat()});
+/* לחיצה על קטגוריה: בשורות של החלוקה, בעוגה וביעדים */
+['legend','pie','ct'].forEach(id=>$(id).addEventListener('click',e=>{const el=e.target.closest('[data-cat]');if(el)openCat(el.dataset.cat)}));
 $('more').onclick=()=>{logN+=20;render()};
 
 /* ---------- Apple Pay popup ---------- */
@@ -774,7 +808,8 @@ $('apusr').addEventListener('click',e=>{const b=e.target.closest('button');if(b)
 $('apx').onclick=closeAp;
 $('apone').onclick=()=>{if(apSug)apSave(apSug)};
 $('apgrid').addEventListener('click',e=>{const b=e.target.closest('button');if(b)apSave(CATS[+b.dataset.i])});
-addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('zv').hidden)zvClose();else if(!$('sc').hidden)$('scx').click();else if(!$('rv').hidden)closeRv();else if(!$('ed').hidden)closeEdit();else if(!$('ap').hidden)closeAp()}});
+$('ct').addEventListener('keydown',e=>{const el=e.target.closest('[data-cat]');if(el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openCat(el.dataset.cat)}});
+addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('cv').hidden&&$('ed').hidden&&$('rv').hidden&&$('zv').hidden&&$('sc').hidden){closeCat();return}if(!$('zv').hidden)zvClose();else if(!$('sc').hidden)$('scx').click();else if(!$('rv').hidden)closeRv();else if(!$('ed').hidden)closeEdit();else if(!$('ap').hidden)closeAp()}});
 
 /* ---------- settings ---------- */
 const VIEWS={settings:'v-set',more:'v-more',receipts:'v-rc',discount:'v-disc',prices:'v-pr'};
