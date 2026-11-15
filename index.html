@@ -27,7 +27,9 @@ main{max-width:480px;margin:0 auto;padding:20px 16px 96px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .pill{font:500 .9rem 'Heebo',sans-serif;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 14px;cursor:pointer;white-space:nowrap}
 .hero{padding:8px 4px 20px}
-#date{color:var(--muted);font-weight:500;font-size:.92rem;min-width:0}
+#date{color:var(--muted);font-weight:500;font-size:.92rem;min-width:0;flex:1}
+.menub{flex:none;width:44px;height:44px;margin:-4px 0;display:grid;place-items:center;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:12px;cursor:pointer;padding:0}
+.menub:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .tb{flex:none}
 #time{font-size:4.2rem;font-weight:800;line-height:1.05;letter-spacing:-.02em;font-variant-numeric:tabular-nums;direction:ltr;text-align:right}
 #greet{font-size:1.6rem;font-weight:500;color:var(--accent)}
@@ -212,7 +214,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 
 <div id="v-home">
   <section class="hero">
-    <div class="top"><div id="date"></div><div class="tb"><button class="pill" id="morebtn">עוד דפים</button><button class="pill" id="gear">הגדרות</button></div></div>
+    <div class="top"><button class="menub" id="morebtn" type="button" aria-label="עוד דפים" title="עוד דפים"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button><div id="date"></div><div class="tb"><button class="pill" id="gear">הגדרות</button></div></div>
     <div id="time"></div>
     <div id="greet"></div>
   </section>
@@ -475,7 +477,7 @@ function tick(){
   $('date').textContent=new Intl.DateTimeFormat('he-IL',{weekday:'long',day:'numeric',month:'long',year:'numeric',calendar:'gregory'}).format(d);
   $('time').textContent=d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false});
   const h=d.getHours();
-  $('greet').textContent=h<11?'בוקר טוב':h<17?'צהריים טובים':'ערב טוב';
+  $('greet').textContent=(h<11?'בוקר טוב':h<17?'צהריים טובים':'ערב טוב')+(meName?' '+meName:'');
   const k=curKey();
   if(k!==ck){const was=keyOf(viewY,viewM)===ck;ck=k;if(was)goCur();load();render()}
 }
@@ -2468,6 +2470,7 @@ $('rvtxdel').onclick=async()=>{
 })();
 const EMAILS={'דביר':'dvir.xfezn6h1@example.com','נעמה':'naama.akn9zqne@example.com'};
 let who=lget('budget-who','');
+let meName='';
 function setWho(w){who=w;$('em').value=EMAILS[w]||'';document.querySelectorAll('#lusr button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.u===w))}
 $('lusr').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setWho(b.dataset.u)});
 $('lf').addEventListener('submit',async e=>{
@@ -2483,6 +2486,9 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&authed)lo
 applyBg(lget('budget-bg','')); setUser(user); setWho(who);
 if(sb){
   sb.auth.onAuthStateChange((ev,sess)=>{
+    /* שם מי שמחובר, לפי כתובת ההתחברות שלו */
+    const em=sess&&sess.user?String(sess.user.email||'').toLowerCase():'';
+    meName=Object.keys(EMAILS).find(n=>EMAILS[n].toLowerCase()===em)||'';tick();
     authed=!!sess; show();
     if(sess) setTimeout(()=>{live();load();apayCheck()},0); else {tx=[];render()}
   });
