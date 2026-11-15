@@ -27,12 +27,12 @@ main{max-width:480px;margin:0 auto;padding:20px 16px 96px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .pill{font:500 .9rem 'Heebo',sans-serif;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 14px;cursor:pointer;white-space:nowrap}
 .hero{padding:8px 4px 20px}
-#date{color:var(--muted);font-weight:500;font-size:.92rem;min-width:0;flex:1}
+#date{color:var(--muted);font-weight:500;font-size:.95rem;text-align:center;margin-top:10px}
 .menub{flex:none;width:44px;height:44px;margin:-4px 0;display:grid;place-items:center;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:12px;cursor:pointer;padding:0}
 .menub:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .tb{flex:none}
-#time{font-size:4.2rem;font-weight:800;line-height:1.05;letter-spacing:-.02em;font-variant-numeric:tabular-nums;direction:ltr;text-align:right}
-#greet{font-size:1.6rem;font-weight:500;color:var(--accent)}
+#time{font-size:4.2rem;font-weight:800;line-height:1.05;letter-spacing:-.02em;font-variant-numeric:tabular-nums;direction:ltr;text-align:center}
+#greet{font-size:1.6rem;font-weight:500;color:var(--accent);text-align:center}
 .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px}
 h1{margin:0;font-size:1.3rem}
 h2{margin:0 0 12px;font-size:1rem;font-weight:700}
@@ -214,7 +214,8 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 
 <div id="v-home">
   <section class="hero">
-    <div class="top"><button class="menub" id="morebtn" type="button" aria-label="עוד דפים" title="עוד דפים"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button><div id="date"></div><div class="tb"><button class="pill" id="gear">הגדרות</button></div></div>
+    <div class="top"><button class="menub" id="morebtn" type="button" aria-label="עוד דפים" title="עוד דפים"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button><div class="tb"><button class="pill" id="gear">הגדרות</button></div></div>
+    <div id="date"></div>
     <div id="time"></div>
     <div id="greet"></div>
   </section>
