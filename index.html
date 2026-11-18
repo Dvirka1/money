@@ -282,6 +282,13 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
     <p class="hint">היעד נשמר ומשותף בין המכשירים. המסך הראשי יציג כמה נשאר ממנו.</p>
   </section>
   <section class="card">
+    <h2>הוספת קטגוריה</h2>
+    <div class="seg"><button type="button" id="nce" aria-pressed="true">הוצאה</button><button type="button" id="nci" aria-pressed="false">הכנסה</button></div>
+    <div style="display:flex;gap:8px"><input class="txt" id="ncn" type="text" maxlength="24" autocomplete="off" placeholder="שם הקטגוריה, לדוגמה חופשה" aria-label="שם הקטגוריה החדשה" style="flex:1;min-width:0"><button class="btn" id="ncadd" type="button">הוספה</button></div>
+    <p class="hint">הקטגוריה תופיע אחרי הקטגוריות הקבועות, בשני המכשירים. אפשר למחוק רק קטגוריה שעדיין אין בה תנועות.</p>
+    <div id="nclist"></div>
+  </section>
+  <section class="card">
     <h2>יעד לכל קטגוריה</h2>
     <div id="ctset"></div>
     <p class="hint">משאירים ריק כשאין יעד. קטגוריה עם יעד תופיע במסך הראשי עם פס התקדמות.</p>
@@ -450,8 +457,11 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 <div id="toast"><div><span id="msg"></span><button id="undo">ביטול</button></div></div>
 
 <script>
-const CATS=['שכר דירה','ועד בית','ארנונה','חשמל','מים','גז','מזון','ביגוד','קניות דביר','קניות נעמה','אינטרנט ביתי','מסעדות ובילויים','תחזוקת בית','דלק','דלק - עמותה','מיוחדים'];
-const ICATS=['משכורת דביר','משכורת נעמה','בייביסיטר נעמה','עבודות תקשורת','מכירת ציוד','החזר - דלק עמותה'];
+const BASE_CATS=['שכר דירה','ועד בית','ארנונה','חשמל','מים','גז','מזון','ביגוד','קניות דביר','קניות נעמה','אינטרנט ביתי','מסעדות ובילויים','תחזוקת בית','דלק','דלק - עמותה','מיוחדים'];
+const BASE_ICATS=['משכורת דביר','משכורת נעמה','בייביסיטר נעמה','עבודות תקשורת','מכירת ציוד','החזר - דלק עמותה'];
+/* הרשימות בפועל: הקבועות ואחריהן הקטגוריות שנוספו מההגדרות (משותפות לשני המכשירים) */
+const CATS=BASE_CATS.slice(),ICATS=BASE_ICATS.slice();
+let customCats={e:[],i:[]};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 /* שתי קטגוריות הדלק (13, 14) בגווני אפור: בגלגל הצבעים הרגיל הן קרובות מדי לאדום של שכר דירה ולירוק של מים/גז */
@@ -510,14 +520,14 @@ async function load(){
     const s=new Date(viewY,viewM,1).getTime(),e=new Date(viewY,viewM+1,1).getTime();
     const [a,b,c,d,f]=await Promise.all([
       sb.from('tx').select('*').gte('t',s).lt('t',e),
-      sb.from('settings').select('target,cat_targets').eq('id','main').maybeSingle(),
+      sb.from('settings').select('target,cat_targets,custom_cats').eq('id','main').maybeSingle(),
       sb.from('recurring').select('*'),
       sb.from('merchant_rules').select('*'),
       sb.from('tx').select('rec_id').eq('rec_month',curKey())
     ]);
     if(a.error){flash('אין גישה לנתונים. בדקו חיבור והרשאות');return}
     tx=a.data.map(fromRow);
-    if(b.data){target=Number(b.data.target)||0;catT=b.data.cat_targets||{}}
+    if(b.data){target=Number(b.data.target)||0;catT=b.data.cat_targets||{};setCustom(b.data.custom_cats)}
     recs=(c.data||[]).map(r=>({id:r.id,type:r.type,c:r.c,a:Number(r.a),day:r.day,auto:!!r.auto,active:!!r.active}));
     rules={}; (d.data||[]).forEach(r=>{rules[r.merchant]=r.category});
     recDone=new Set((f.data||[]).map(r=>r.rec_id));
@@ -663,7 +673,6 @@ function setMode(m){
   mode=m; $('te').setAttribute('aria-pressed',m==='e'); $('ti').setAttribute('aria-pressed',m==='i'); syncEntry();
 }
 $('te').onclick=()=>setMode('e'); $('ti').onclick=()=>setMode('i');
-$('grid').innerHTML=CATS.map((c,i)=>`<button type="button" data-i="${i}">${esc(c)}</button>`).join('');
 async function commit(o,text){
   if(await addTx(o)){amt.value=''; syncEntry(); flash(text,true)}
 }
@@ -673,7 +682,6 @@ $('grid').addEventListener('click',e=>{
   const c=CATS[+b.dataset.i];
   commit({type:'e',a,c,t:Date.now()},`נשמרו ${money(a)} ב${c}`);
 });
-$('igrid').innerHTML=ICATS.map((c,i)=>`<button type="button" data-i="${i}">${esc(c)}</button>`).join('');
 $('igrid').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
   const a=parseFloat(amt.value); if(!(a>0)) return;
@@ -801,7 +809,6 @@ async function apSave(cat){
     closeAp(); flash(`נשמרו ${money(a)} ב${cat}`,true);
   }
 }
-$('apgrid').innerHTML=CATS.map((c,i)=>`<button type="button" data-i="${i}">${esc(c)}</button>`).join('');
 $('apamt').addEventListener('input',()=>clean($('apamt')));
 $('apm').addEventListener('input',apSuggest);
 $('apusr').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setUser(b.dataset.u)});
@@ -846,7 +853,6 @@ $('tgt').addEventListener('change',async()=>{
 });
 
 /* יעד לכל קטגוריה */
-$('ctset').innerHTML=CATS.map(c=>`<div class="ct"><span>${esc(c)}</span><input class="txt" type="text" inputmode="decimal" data-c="${esc(c)}" placeholder="ללא יעד" aria-label="יעד ל${esc(c)}"></div>`).join('');
 $('ctset').addEventListener('input',e=>{if(e.target.matches('input'))clean(e.target)});
 $('ctset').addEventListener('change',async()=>{
   const o={};
@@ -888,7 +894,50 @@ $('mrlist').addEventListener('click',async e=>{
   const {error}=await sb.from('merchant_rules').delete().eq('merchant',b.dataset.m);
   if(error) flash('לא ניתן למחוק'); else {delete rules[b.dataset.m];flash('הכלל נמחק');await load()}
 });
+/* בונה מחדש את כל המקומות שמציגים את רשימת הקטגוריות */
+function buildCats(){
+  const btns=l=>l.map((c,i)=>`<button type="button" data-i="${i}">${esc(c)}</button>`).join('');
+  $('grid').innerHTML=btns(CATS);$('igrid').innerHTML=btns(ICATS);$('apgrid').innerHTML=btns(CATS);
+  $('ctset').innerHTML=CATS.map(c=>`<div class="ct"><span>${esc(c)}</span><input class="txt" type="text" inputmode="decimal" data-c="${esc(c)}" placeholder="ללא יעד" aria-label="יעד ל${esc(c)}"></div>`).join('');
+  fillRC();
+}
+function setCustom(v){
+  const clean=a=>Array.isArray(a)?a.map(s=>String(s||'').trim()).filter(Boolean):[];
+  const n={e:clean(v&&v.e),i:clean(v&&v.i)};
+  if(JSON.stringify(n)===JSON.stringify(customCats)) return;
+  customCats=n;
+  CATS.splice(0,CATS.length,...BASE_CATS,...n.e.filter(c=>!BASE_CATS.includes(c)));
+  ICATS.splice(0,ICATS.length,...BASE_ICATS,...n.i.filter(c=>!BASE_ICATS.includes(c)));
+  buildCats();
+}
+/* הוספת קטגוריה ומחיקה של קטגוריה שנוספה */
+let nctype='e';
+const ncSet=t=>{nctype=t;$('nce').setAttribute('aria-pressed',String(t==='e'));$('nci').setAttribute('aria-pressed',String(t==='i'))};
+$('nce').onclick=()=>ncSet('e');$('nci').onclick=()=>ncSet('i');
+async function addCat(){
+  const name=$('ncn').value.replace(/\s+/g,' ').trim();
+  if(!name){$('ncn').focus();return}
+  if(name.length>24){flash('שם קצר יותר, עד 24 תווים');return}
+  if(CATS.includes(name)||ICATS.includes(name)){flash('כבר יש קטגוריה בשם הזה');return}
+  const n={e:customCats.e.slice(),i:customCats.i.slice()};n[nctype].push(name);
+  if(await saveSettings({custom_cats:n},`הקטגוריה "${name}" נוספה`)){setCustom(n);$('ncn').value='';renderSettings();render()}
+}
+$('ncadd').onclick=addCat;
+$('ncn').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addCat()}});
+$('nclist').addEventListener('click',async e=>{
+  const b=e.target.closest('.lb');if(!b) return;
+  const t=b.dataset.t,c=b.dataset.c;
+  /* קטגוריה שיש בה תנועות או הוראות קבע לא נמחקת, כדי שלא ייעלמו מהחלוקה ומהדוחות */
+  const q=await sb.from('tx').select('id',{count:'exact',head:true}).eq('c',c).eq('type',t);
+  if(q.error){flash('לא ניתן לבדוק. בדקו חיבור לאינטרנט');return}
+  if((q.count||0)>0||recs.some(r=>r.c===c&&r.type===t)){flash(`יש תנועות בקטגוריה "${c}", ולכן אי אפשר למחוק אותה`);return}
+  const n={e:customCats.e.filter(x=>!(t==='e'&&x===c)),i:customCats.i.filter(x=>!(t==='i'&&x===c))};
+  if(await saveSettings({custom_cats:n},`הקטגוריה "${c}" נמחקה`)){setCustom(n);renderSettings();render()}
+});
+buildCats();
 function renderSettings(){
+  const cl=[...customCats.e.map(c=>['e',c]),...customCats.i.map(c=>['i',c])];
+  $('nclist').innerHTML=cl.length?cl.map(([t,c])=>`<div class="li"><div><b>${esc(c)}</b><br><small>${t==='i'?'הכנסה':'הוצאה'}</small></div><button class="lb" data-t="${t}" data-c="${esc(c)}">מחיקה</button></div>`).join(''):'<p class="hint" style="margin:0">עדיין לא נוספו קטגוריות.</p>';
   $('ctset').querySelectorAll('input').forEach(i=>{if(document.activeElement!==i)i.value=catT[i.dataset.c]||''});
   $('rlist').innerHTML=recs.length?recs.map(r=>`<div class="li"><div><b>${esc(r.c)}</b> ${money(r.a)}<br><small>${r.type==='i'?'הכנסה':'הוצאה'}, יום ${r.day}, ${r.auto?'נוספת אוטומטית':'תזכורת'}${r.active?'':', מושהית'}</small></div><div class="acts2"><button class="lb" data-act="tog" data-id="${esc(r.id)}">${r.active?'השהיה':'הפעלה'}</button><button class="lb" data-act="rdel" data-id="${esc(r.id)}">מחיקה</button></div></div>`).join(''):'<p class="empty">עוד אין הוראות קבע.</p>';
   const ks=Object.keys(rules).sort();
