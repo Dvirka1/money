@@ -2259,6 +2259,37 @@ $('mf').addEventListener('submit',async e=>{
   }finally{$('mbtn').disabled=false}
 });
 $('mout').onclick=()=>$('logout').click();
+/* ---------- סדר הקוביות במסך הבית: לכל משתמש בנפרד, נשמר בחשבון שלו ---------- */
+const LAYOUT=[['hero','שעה וברכה'],['rem','תזכורות החודש'],['entry','תיעוד תנועה'],['month','סיכום החודש'],['people','הוצאות עבור אנשים'],['targets','יעדים לפי קטגוריה'],['pie','חלוקה לפי קטגוריות'],['log','יומן תנועות']];
+const LDEF=LAYOUT.map(x=>x[0]);
+let layout=LDEF.slice();
+function normLayout(v){const o=(Array.isArray(v)?v:[]).filter((k,i,a)=>LDEF.includes(k)&&a.indexOf(k)===i);return o.concat(LDEF.filter(k=>!o.includes(k)))}
+function applyLayout(){
+  const home=$('v-home');
+  layout.forEach((k,i)=>{const el=home.querySelector(`:scope>section[data-k="${k}"]`);if(el)el.style.order=i});
+  const name=Object.fromEntries(LAYOUT);
+  $('lyl').innerHTML=layout.map((k,i)=>`<li data-k="${k}"><span>${esc(name[k])}</span><button type="button" data-mv="-1" aria-label="להזיז את ${esc(name[k])} למעלה"${i===0?' disabled':''}>▲</button><button type="button" data-mv="1" aria-label="להזיז את ${esc(name[k])} למטה"${i===layout.length-1?' disabled':''}>▼</button></li>`).join('');
+}
+function setLayoutFromUser(u){
+  const v=u&&u.user_metadata&&u.user_metadata.layout;
+  layout=normLayout(v||lget('budget-layout',null));applyLayout();
+}
+let lyT=null;
+function saveLayout(){
+  lset('budget-layout',layout);
+  clearTimeout(lyT);lyT=setTimeout(async()=>{if(sb&&authed){const {error}=await sb.auth.updateUser({data:{layout}});if(error)flash('הסדר נשמר רק במכשיר הזה')}},700);
+}
+$('lyl').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-mv]');if(!b) return;
+  const k=b.closest('li').dataset.k,i=layout.indexOf(k),j=i+Number(b.dataset.mv);
+  if(j<0||j>=layout.length) return;
+  [layout[i],layout[j]]=[layout[j],layout[i]];applyLayout();saveLayout();
+  const li=$('lyl').querySelector(`li[data-k="${k}"]`);li.classList.add('moved');
+  const nb=li.querySelector(`button[data-mv="${b.dataset.mv}"]`);(nb&&!nb.disabled?nb:li.querySelector('button:not(:disabled)')).focus();
+});
+$('lyreset').onclick=()=>{layout=LDEF.slice();applyLayout();saveLayout();flash('הסדר חזר לברירת המחדל')};
+setLayoutFromUser(null);
+
 /* הפעלה וביטול של אימות דו-שלבי מתוך ההגדרות */
 let mfaPending=null;
 async function renderMfa(){
@@ -2303,6 +2334,7 @@ if(sb){
   sb.auth.onAuthStateChange((ev,sess)=>{
     /* שם מי שמחובר: נשמר בחשבון שלו בשרת */
     meName=sess&&sess.user&&sess.user.user_metadata?String(sess.user.user_metadata.name||''):'';tick();
+    if(sess&&sess.user) setLayoutFromUser(sess.user);
     if(meName&&!user) setUser(meName);
     setTimeout(async()=>{
       const need=sess?await mfaCheck():false;

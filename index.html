@@ -239,6 +239,15 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 .sw input{width:44px;height:44px}
 .chk{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}
 .chk input{width:24px;height:24px;flex:none;margin:0}
+.homeflow{display:flex;flex-direction:column}
+.homeflow>section{margin-bottom:14px}
+.homeflow>.hero{margin-bottom:0}
+.lyl{list-style:none;margin:0 0 10px;padding:0}
+.lyl li{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)}
+.lyl li span{flex:1}
+.lyl button{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--chip);color:var(--ink);font-size:1.1rem;cursor:pointer}
+.lyl button:disabled{opacity:.35;cursor:default}
+.lyl li.moved{background:var(--chip)}
 </style>
 </head>
 <body>
@@ -250,19 +259,19 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 <form id="mf"><input id="mcode" class="txt" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" dir="ltr" aria-label="קוד אימות" required style="font-size:1.4rem;letter-spacing:.3em;text-align:center"><button class="btn main" id="mbtn" type="submit">אישור</button><p class="neg" id="merr" role="alert"></p></form>
 <button class="pill" id="mout" type="button">יציאה</button></section></div>
 
-<div id="v-home">
-  <section class="hero">
+<div id="v-home" class="homeflow">
+  <section class="hero" data-k="hero">
     <div class="top"><button class="menub" id="morebtn" type="button" aria-label="עוד דפים" title="עוד דפים"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button><div id="date"></div><div class="tb"><button class="pill" id="gear">הגדרות</button></div></div>
     <div id="time"></div>
     <div id="greet"></div>
   </section>
 
-  <section class="card" id="remcard" hidden>
+  <section class="card" id="remcard" data-k="rem" hidden>
     <h2>תזכורות החודש</h2>
     <div id="rem"></div>
   </section>
 
-  <section class="card">
+  <section class="card" data-k="entry">
     <h2>תיעוד תנועה</h2>
     <small>מי מתעד?</small>
     <div class="seg" id="usr" style="margin-top:4px"></div>
@@ -273,7 +282,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
     <div id="incats" class="open-box"><p>מאיפה ההכנסה?</p><div class="grid" id="igrid"></div></div>
   </section>
 
-  <section class="card">
+  <section class="card" data-k="month">
     <div class="mnav">
       <button class="mn" id="mprev" aria-label="חודש קודם"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
       <div class="mt" id="mon"></div>
@@ -286,7 +295,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
     <div id="tinfo" class="hint"></div>
   </section>
 
-  <section class="card" id="pcard">
+  <section class="card" id="pcard" data-k="people">
     <div class="lh"><h2 style="margin:0">הוצאות עבור אנשים</h2><button class="pill sm" id="padd" type="button" aria-expanded="false" aria-controls="pform">תיעוד</button></div>
     <div id="pform" hidden>
       <div class="seg" style="margin-top:12px"><button type="button" id="pdo" aria-pressed="true">שילמתי עבור מישהו</button><button type="button" id="pdi" aria-pressed="false">קיבלתי בחזרה</button></div>
@@ -302,17 +311,17 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
     <div id="plist"></div>
   </section>
 
-  <section class="card" id="ctcard" hidden>
+  <section class="card" id="ctcard" data-k="targets" hidden>
     <h2>יעדים לפי קטגוריה</h2>
     <div id="ct"></div>
   </section>
 
-  <section class="card">
+  <section class="card" data-k="pie">
     <h2>חלוקה לפי קטגוריות</h2>
     <svg id="pie" viewBox="-1.05 -1.05 2.1 2.1" role="img" aria-label="גרף עוגה של ההוצאות לפי קטגוריה"></svg>
     <div id="legend"></div>
   </section>
-  <section class="card">
+  <section class="card" data-k="log">
     <div class="lh"><h2 id="logt">יומן תנועות החודש</h2><button class="pill sm" id="logtog" type="button" aria-controls="log" aria-expanded="true">הסתרה</button></div>
     <div id="log"></div>
     <p class="empty" id="loghid" hidden></p>
@@ -326,6 +335,12 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
     <h2>יעד הוצאות חודשי</h2>
     <div class="amt"><span>₪</span><input id="tgt" type="text" inputmode="decimal" autocomplete="off" placeholder="לדוגמה 12000" aria-label="יעד הוצאות חודשי"></div>
     <p class="hint">היעד נשמר ומשותף בין המכשירים. המסך הראשי יציג כמה נשאר ממנו.</p>
+  </section>
+  <section class="card">
+    <h2>סדר הקוביות במסך הבית</h2>
+    <p class="hint" style="margin-top:0">הסדר נשמר לכל אחד בנפרד, בחשבון שלו, ועובר איתו בין מכשירים.</p>
+    <ol id="lyl" class="lyl"></ol>
+    <button class="pill" id="lyreset" type="button">חזרה לסדר הרגיל</button>
   </section>
   <section class="card">
     <h2>אימות דו-שלבי</h2>
@@ -516,6 +531,6 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 
 <div id="toast"><div><span id="msg"></span><button id="undo">ביטול</button></div></div>
 
-<script src="app.js?v=533871650d"></script>
+<script src="app.js?v=8fd59bc596"></script>
 </body>
 </html>
