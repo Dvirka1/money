@@ -248,6 +248,15 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 .lyl button{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--chip);color:var(--ink);font-size:1.1rem;cursor:pointer}
 .lyl button:disabled{opacity:.35;cursor:default}
 .lyl li.moved{background:var(--chip)}
+.svh{font-size:1rem;margin:18px 0 0}
+.svchart{margin-top:12px}
+.svchart svg{display:block;width:100%;height:auto;overflow:visible}
+.svchart .pos{fill:var(--accent)}.svchart .negb{fill:var(--bad)}
+.svchart text{fill:var(--muted);font:500 10px 'Heebo',sans-serif}
+.svchart .zero{stroke:var(--line);stroke-width:1}
+#svlist .svr{display:grid;grid-template-columns:1fr auto auto;gap:4px 12px;padding:8px 0;border-top:1px solid var(--line);font-size:.9rem;align-items:baseline}
+#svlist .svr small{grid-column:1/-1;color:var(--muted)}
+#svlist .svr b.neg{color:var(--bad)}
 </style>
 </head>
 <body>
@@ -293,6 +302,16 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
     <div class="two"><div><small id="il">הכנסות החודש</small><b id="inc">₪0</b></div><div><small>יתרה (הכנסות פחות הוצאות)</small><b id="bal">₪0</b></div></div>
     <div class="bar" id="barw"><i id="bar" style="width:0"></i></div>
     <div id="tinfo" class="hint"></div>
+  </section>
+
+  <section class="card" data-k="savings">
+    <h2 id="svt">חיסכון החודש</h2>
+    <div class="two" style="margin-top:8px"><div><small>נחסך מההכנסות</small><b id="svm">₪0</b><small id="svp"></small></div><div><small>נשאר מהתקציב החודשי</small><b id="svb">—</b><small id="svbp"></small></div></div>
+    <div class="bar" id="svbarw" style="margin-top:12px" hidden><i id="svbar" style="width:0"></i></div>
+    <h3 class="svh">נצבר לאורך החודשים</h3>
+    <div class="two"><div><small>סך הכול נחסך</small><b id="svall">₪0</b><small id="svalln"></small></div><div><small>ממוצע לחודש</small><b id="svavg">₪0</b><small id="svavgp"></small></div></div>
+    <div id="svchart" class="svchart" role="img"></div>
+    <div id="svlist"></div>
   </section>
 
   <section class="card" id="pcard" data-k="people">
@@ -531,6 +550,6 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 
 <div id="toast"><div><span id="msg"></span><button id="undo">ביטול</button></div></div>
 
-<script src="app.js?v=8fd59bc596"></script>
+<script src="app.js?v=c5def41baa"></script>
 </body>
 </html>

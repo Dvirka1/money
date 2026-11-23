@@ -7,7 +7,7 @@ let customCats={e:[],i:[]};
 const SPLIT_CATS=['מים','חשמל','ארנונה'];
 /* הוצאות עבור אנשים: לא נספרות בהוצאות ובהכנסות של המשק, ומוצגות בקוביה נפרדת */
 const P_OUT='עבור אחרים',P_IN='החזר מאחרים',isPpl=x=>x.c===P_OUT||x.c===P_IN;
-let pplTx=[],pdir='out',pmeth='ביט';
+let allTx=[],pplTx=[],pdir='out',pmeth='ביט';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 /* שתי קטגוריות הדלק (13, 14) בגווני אפור: בגלגל הצבעים הרגיל הן קרובות מדי לאדום של שכר דירה ולירוק של מים/גז */
@@ -65,13 +65,14 @@ async function load(){
   loading=true;
   try{
     const s=new Date(viewY,viewM,1).getTime(),e=new Date(viewY,viewM+1,1).getTime();
-    const [a,b,c,d,f,g]=await Promise.all([
+    const [a,b,c,d,f,g,hist]=await Promise.all([
       sb.from('tx').select('*').gte('t',s).lt('t',e),
       sb.from('settings').select('target,cat_targets,custom_cats,cats,members').eq('id','main').maybeSingle(),
       sb.from('recurring').select('*'),
       sb.from('merchant_rules').select('*'),
       sb.from('tx').select('rec_id').eq('rec_month',curKey()),
-      sb.from('tx').select('*').in('c',[P_OUT,P_IN]).eq('del',false).order('t',{ascending:false}).limit(1000)
+      sb.from('tx').select('*').in('c',[P_OUT,P_IN]).eq('del',false).order('t',{ascending:false}).limit(1000),
+      sb.from('tx').select('type,a,t,c').eq('del',false).order('t',{ascending:true}).limit(20000)
     ]);
     if(a.error){flash('אין גישה לנתונים. בדקו חיבור והרשאות');return}
     tx=a.data.map(fromRow);
@@ -80,6 +81,7 @@ async function load(){
     rules={}; (d.data||[]).forEach(r=>{rules[r.merchant]=r.category});
     recDone=new Set((f.data||[]).map(r=>r.rec_id));
     pplTx=(g&&g.data||[]).map(fromRow);
+    allTx=(hist&&hist.data||[]).map(r=>({type:r.type,a:Number(r.a),t:Number(r.t),c:r.c}));
     busy=false;
     if(!$('ap').hidden) apSuggest(); /* החלונית נפתחת לפני שהכללים נטענו */
     if(document.activeElement!==$('tgt')) $('tgt').value=target||'';
@@ -182,7 +184,7 @@ function render(){
   $('ctcard').hidden=!items.length;
   $('ct').innerHTML=items.map(x=>`<div class="tg" data-cat="${esc(x.c)}" role="button" tabindex="0"><div class="tt"><span>${esc(x.c)}</span><span>${money(x.v)} מתוך ${money(x.t)}</span></div><div class="bar sm"><i class="${x.v>x.t?'over':''}" style="width:${Math.min(100,x.p*100)}%"></i></div><small class="${x.v>x.t?'neg':''}">${x.v>x.t?'חריגה של '+money(x.v-x.t):'נשארו '+money(x.t-x.v)}</small></div>`).join('');
 
-  renderRem(); renderLog(tx); renderCat(); renderPpl();
+  renderRem(); renderLog(tx); renderCat(); renderPpl(); renderSav(exp,inc);
 
   const used=CATS.map((c,i)=>({c,i,v:sums[i]})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
   const pie=$('pie'),lg=$('legend');
@@ -346,6 +348,50 @@ document.addEventListener('visibilitychange',async()=>{
   const busyUI=$('amt').value||$('note').value||$('pamt').value||!$('ed').hidden||!$('sc').hidden||!$('rcform').hidden;
   if(s&&s!==pageSig){if(busyUI)flash('יש גרסה חדשה של האפליקציה. היא תיטען בפעם הבאה');else location.reload()}
 });
+
+/* ---------- חיסכון: כמה נשאר מההכנסות, כמה נשאר מהתקציב, ומה נצבר לאורך החודשים ---------- */
+/* סכום עם סימן מינוס במקום הנכון גם בטקסט מימין לשמאל */
+const sMoney=n=>`<bdi dir="ltr">${n<0?'−':''}${money(Math.abs(n))}</bdi>`;
+function renderSav(exp,inc){
+  const cur=isCur(),sv=inc-exp;
+  $('svt').textContent=cur?'חיסכון החודש':'חיסכון ב'+monthName(viewY,viewM);
+  $('svm').innerHTML=sMoney(sv);$('svm').classList.toggle('neg',sv<0);
+  $('svp').textContent=inc>0?(sv>=0?`${Math.round(sv/inc*100)}% מההכנסות`:`הוצאתם ${money(-sv)} יותר מההכנסות`):'עוד לא תועדו הכנסות';
+  if(target>0){
+    const left=target-exp;
+    $('svb').textContent=left>=0?money(left):'−'+money(-left);$('svb').classList.toggle('neg',left<0);
+    $('svbp').textContent=left>=0?`מתוך ${money(target)} (נוצלו ${Math.round(exp/target*100)}%)`:`חריגה מתקציב של ${money(target)}`;
+    $('svbarw').hidden=false;$('svbar').style.width=Math.min(100,exp/target*100)+'%';$('svbar').classList.toggle('over',exp>target);
+  }else{$('svb').textContent='—';$('svb').classList.remove('neg');$('svbp').textContent='אפשר להגדיר תקציב בהגדרות';$('svbarw').hidden=true}
+  /* לפי חודשים, מהחודש הראשון שיש בו תנועות ועד החודש הנוכחי */
+  const now=new Date(),by={};
+  allTx.forEach(x=>{if(isPpl(x))return;const d=new Date(x.t),k=d.getFullYear()*12+d.getMonth(),r=by[k]||(by[k]={i:0,e:0});if(x.type==='i')r.i+=x.a;else r.e+=x.a});
+  const ks=Object.keys(by).map(Number),last=now.getFullYear()*12+now.getMonth();
+  if(!ks.length){$('svall').textContent=money(0);$('svalln').textContent='';$('svavg').textContent=money(0);$('svavgp').textContent='';$('svchart').innerHTML='';$('svlist').innerHTML='<p class="hint">עדיין אין תנועות.</p>';return}
+  const first=Math.min(...ks),months=[];let run=0;
+  for(let k=first;k<=Math.max(last,Math.max(...ks));k++){const r=by[k]||{i:0,e:0},s=r.i-r.e;run+=s;months.push({k,y:Math.floor(k/12),m:k%12,i:r.i,e:r.e,s,run})}
+  const tot=run,ti=months.reduce((t,x)=>t+x.i,0);
+  $('svall').innerHTML=sMoney(tot);$('svall').classList.toggle('neg',tot<0);
+  $('svalln').textContent=`ב-${months.length} ${months.length===1?'חודש':'חודשים'}`+(ti>0?`, ${Math.round(tot/ti*100)}% מההכנסות`:'');
+  const avg=tot/months.length;$('svavg').innerHTML=sMoney(Math.round(avg));$('svavg').classList.toggle('neg',avg<0);
+  $('svavgp').textContent=months.filter(x=>x.s>0).length+' חודשים עם חיסכון';
+  /* גרף עמודות: 12 החודשים האחרונים */
+  /* קו האפס ממוקם לפי היחס בין החודש הכי חיובי לחודש הכי שלילי, כדי שלא יישאר שטח ריק */
+  const sh=months.slice(-12),W=320,H=110,pad=16,bw=W/sh.length;
+  const up=Math.max(0,...sh.map(x=>x.s)),dn=Math.max(0,...sh.map(x=>-x.s)),span=Math.max(1,up+dn);
+  const sc=(H-8)/span,zy=4+up*sc;
+  const short=new Intl.DateTimeFormat('he-IL',{month:'short'});
+  let svg=`<svg viewBox="0 0 ${W} ${H+pad}" aria-hidden="true">`;
+  sh.forEach((x,i)=>{
+    const hgt=Math.max(x.s?2:0,Math.abs(x.s)*sc),X=W-(i+1)*bw+bw*0.18,y=x.s>=0?zy-hgt:zy;
+    svg+=`<rect class="${x.s>=0?'pos':'negb'}" x="${X.toFixed(1)}" y="${y.toFixed(1)}" width="${(bw*0.64).toFixed(1)}" height="${hgt.toFixed(1)}" rx="2"><title>${monthName(x.y,x.m)}: ${money(x.s)}</title></rect>`;
+    svg+=`<text x="${(X+bw*0.32).toFixed(1)}" y="${H+pad-2}" text-anchor="middle">${short.format(new Date(x.y,x.m,1))}</text>`;
+  });
+  svg+=`<line class="zero" x1="0" x2="${W}" y1="${zy}" y2="${zy}"/></svg>`;
+  $('svchart').innerHTML=svg;
+  $('svchart').setAttribute('aria-label','חיסכון לפי חודש: '+sh.map(x=>monthName(x.y,x.m)+' '+money(x.s)).join(', '));
+  $('svlist').innerHTML=months.slice().reverse().map(x=>`<div class="svr"><span>${monthName(x.y,x.m)}</span><b class="${x.s<0?'neg':''}">${sMoney(x.s)}</b><span>מצטבר ${sMoney(x.run)}</span><small>הכנסות ${money(x.i)} · הוצאות ${money(x.e)}</small></div>`).join('');
+}
 
 /* ---------- הוצאות עבור אנשים: כמה יצא, כמה חזר, וממי עוד צריך לקבל ---------- */
 let pPerson=null;
@@ -2260,7 +2306,7 @@ $('mf').addEventListener('submit',async e=>{
 });
 $('mout').onclick=()=>$('logout').click();
 /* ---------- סדר הקוביות במסך הבית: לכל משתמש בנפרד, נשמר בחשבון שלו ---------- */
-const LAYOUT=[['hero','שעה וברכה'],['rem','תזכורות החודש'],['entry','תיעוד תנועה'],['month','סיכום החודש'],['people','הוצאות עבור אנשים'],['targets','יעדים לפי קטגוריה'],['pie','חלוקה לפי קטגוריות'],['log','יומן תנועות']];
+const LAYOUT=[['hero','שעה וברכה'],['rem','תזכורות החודש'],['entry','תיעוד תנועה'],['month','סיכום החודש'],['savings','חיסכון ומה שנצבר'],['people','הוצאות עבור אנשים'],['targets','יעדים לפי קטגוריה'],['pie','חלוקה לפי קטגוריות'],['log','יומן תנועות']];
 const LDEF=LAYOUT.map(x=>x[0]);
 let layout=LDEF.slice();
 function normLayout(v){const o=(Array.isArray(v)?v:[]).filter((k,i,a)=>LDEF.includes(k)&&a.indexOf(k)===i);return o.concat(LDEF.filter(k=>!o.includes(k)))}
