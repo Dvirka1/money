@@ -65,19 +65,17 @@ async function load(){
   loading=true;
   try{
     const s=new Date(viewY,viewM,1).getTime(),e=new Date(viewY,viewM+1,1).getTime();
-    const [a,b,c,d,f,g,hist,mem]=await Promise.all([
+    const [a,b,c,d,f,g,hist]=await Promise.all([
       sb.from('tx').select('*').gte('t',s).lt('t',e),
-      sb.from('settings').select('target,cat_targets,custom_cats,cats,members,household_id').maybeSingle(),
+      sb.from('settings').select('target,cat_targets,custom_cats,cats,members').eq('id','main').maybeSingle(),
       sb.from('recurring').select('*'),
       sb.from('merchant_rules').select('*'),
       sb.from('tx').select('rec_id').eq('rec_month',curKey()),
       sb.from('tx').select('*').in('c',[P_OUT,P_IN]).eq('del',false).order('t',{ascending:false}).limit(1000),
-      sb.from('tx').select('type,a,t,c').eq('del',false).order('t',{ascending:true}).limit(20000),
-      sb.from('members').select('user_id,household_id,name,role,created_at').order('created_at')
+      sb.from('tx').select('type,a,t,c').eq('del',false).order('t',{ascending:true}).limit(20000)
     ]);
     if(a.error){flash('אין גישה לנתונים. בדקו חיבור והרשאות');return}
     tx=a.data.map(fromRow);
-    hhMembers=(mem&&mem.data)||[];const me=hhMembers.find(m=>m.user_id===myUid);if(me){HH=me.household_id;myRole=me.role;if(me.name&&me.name!==meName){meName=me.name;tick()}}
     if(b.data){target=Number(b.data.target)||0;catT=b.data.cat_targets||{};setBase(b.data.cats,b.data.members);setCustom(b.data.custom_cats,true)}
     recs=(c.data||[]).map(r=>({id:r.id,type:r.type,c:r.c,a:Number(r.a),day:r.day,auto:!!r.auto,active:!!r.active}));
     rules={}; (d.data||[]).forEach(r=>{rules[r.merchant]=r.category});
@@ -144,7 +142,7 @@ async function setDel(id,on){
 }
 async function saveRule(merchant,cat){
   const k=nm(merchant); if(!k||!sb) return;
-  const {error}=await sb.from('merchant_rules').upsert({household_id:HH,merchant:k,category:cat,updated_by:user,updated_t:Date.now()});
+  const {error}=await sb.from('merchant_rules').upsert({merchant:k,category:cat,updated_by:user,updated_t:Date.now()});
   if(!error) rules[k]=cat;
 }
 
@@ -653,7 +651,7 @@ function show(){
   if(cur==='v-pr'&&authed) renderPrices();
   if(cur==='v-gl'&&authed) loadGoals();
   if(cur==='v-rp'&&authed) loadReports();
-  if(cur==='v-set'&&authed){loadBackups();renderHousehold()}
+  if(cur==='v-set'&&authed) loadBackups();
   if(cur!=='v-rc'&&tw&&!rcBusy){tw.terminate();tw=null} /* משחרר זיכרון של מנוע הקריאה */
 }
 $('gear').onclick=()=>{location.hash='settings'};
@@ -673,7 +671,7 @@ $('dsback').onclick=()=>{location.hash='more'};
 addEventListener('hashchange',show);
 
 async function saveSettings(patch,okMsg){
-  const {error}=HH?await sb.from('settings').update(patch).eq('household_id',HH):{error:{message:'no household'}};
+  const {error}=await sb.from('settings').upsert({id:'main',...patch});
   if(error){flash('לא ניתן לשמור. בדקו חיבור לאינטרנט');return false}
   if(okMsg) flash(okMsg); return true;
 }
@@ -2235,7 +2233,7 @@ async function rcDup(){
 
 async function rcUpload(){
   const d=new Date(),id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():Date.now()+'-'+Math.random().toString(16).slice(2);
-  const path=`${HH}/${d.getFullYear()}-${pad(d.getMonth()+1)}/${id}.jpg`; /* כל משק בית בתיקייה משלו */
+  const path=`${d.getFullYear()}-${pad(d.getMonth()+1)}/${id}.jpg`;
   const {error}=await sb.storage.from('receipts').upload(path,rc.blob,{contentType:'image/jpeg',upsert:false});
   if(error) throw error;
   return path;
@@ -2401,7 +2399,6 @@ $('rvtxdel').onclick=async()=>{
 })();
 /* כניסה: שם משתמש וסיסמה. אחרי כמה ניסיונות שגויים יש המתנה שהולכת וגדלה (ובנוסף Supabase מגביל ניסיונות בשרת) */
 const LOGIN_DOMAIN='@example.com';
-let HH=null,myRole='',myUid='',hhMembers=[],isAdmin=false;
 let meName='',failN=Number(lget('budget-fails',0))||0,lockUntil=Number(lget('budget-lock',0))||0,lockT=null;
 function lockMsg(){
   const s=Math.ceil((lockUntil-Date.now())/1000);
@@ -2453,80 +2450,6 @@ $('mf').addEventListener('submit',async e=>{
   }finally{$('mbtn').disabled=false}
 });
 $('mout').onclick=()=>$('logout').click();
-/* ---------- הרשמה בהזמנה בלבד ---------- */
-const inviteQ=new URLSearchParams(location.search).get('invite');
-function suOpen(on){$('lf').hidden=on;$('suf').hidden=!on;$('lmode').textContent=on?'יש לי כבר חשבון':'יש לי הזמנה';if(on)$((inviteQ?'suname':'sucode')).focus()}
-$('lmode').onclick=()=>suOpen($('suf').hidden);
-if(inviteQ){$('sucode').value=inviteQ;suOpen(true)}
-$('suf').addEventListener('submit',async e=>{
-  e.preventDefault();$('suerr').textContent='';
-  const code=$('sucode').value.trim(),name=$('suname').value.replace(/\s+/g,' ').trim(),email=$('suemail').value.trim().toLowerCase(),pw=$('supw').value;
-  if(!code){$('suerr').textContent='צריך קוד הזמנה';return}
-  if(!name){$('suerr').textContent='איך לקרוא לך?';return}
-  if(pw.length<10){$('suerr').textContent='סיסמה של 10 תווים לפחות';return}
-  if(pw!==$('supw2').value){$('suerr').textContent='הסיסמאות לא זהות';return}
-  $('subtn').disabled=true;
-  const {data,error}=await sb.auth.signUp({email,password:pw,options:{data:{name,invite:code},emailRedirectTo:location.origin+location.pathname}});
-  $('subtn').disabled=false;
-  if(error){
-    const m=String(error.message||'');
-    $('suerr').textContent=/invite/i.test(m)||/Database error/i.test(m)?'ההזמנה לא תקינה, פג תוקפה או שכבר נוצלה':/signups? not allowed|disabled/i.test(m)?'ההרשמה סגורה כרגע בשרת. פנו למי ששלח את ההזמנה':/registered|exists/i.test(m)?'כבר יש חשבון עם המייל הזה':/password/i.test(m)?'הסיסמה חלשה מדי. נסו סיסמה ארוכה יותר':'ההרשמה נכשלה. נסו שוב';
-    return;
-  }
-  history.replaceState(null,'',location.pathname+location.hash);
-  if(!data.session){$('suerr').textContent='';$('suf').innerHTML='<p class="hint">שלחנו אליכם מייל לאישור הכתובת. אחרי האישור חוזרים לכאן ונכנסים עם המייל והסיסמה.</p>';}
-});
-
-/* ---------- משק הבית: חברים, הזמנות, מנהל ומחיקת חשבון ---------- */
-async function renderHousehold(){
-  if(!authed) return;
-  const hq=await sb.from('households').select('name').maybeSingle();
-  if(hq.data&&document.activeElement!==$('hhname')) $('hhname').value=hq.data.name;
-  $('hhmem').innerHTML=hhMembers.map(m=>`<div class="li"><div><b>${esc(m.name)}</b>${m.user_id===myUid?' (את/ה)':''}<br><small>${m.role==='owner'?'מנהל/ת משק הבית':'חבר/ה'}</small></div></div>`).join('');
-  const inv=await sb.rpc('my_invites');
-  const list=(inv.data||[]).filter(x=>!x.used&&new Date(x.expires_at)>new Date());
-  const row=x=>`<div class="li"><div><b>${x.kind==='household'?'משק בית חדש':'הצטרפות למשק הבית'}</b>${x.note?' · '+esc(x.note):''}<br><small>בתוקף עד ${new Date(x.expires_at).toLocaleDateString('he-IL')}</small></div><div style="display:flex;gap:6px"><button class="lb" data-ic="${esc(x.code)}">שיתוף</button><button class="lb" data-ir="${esc(x.code)}">ביטול</button></div></div>`;
-  $('hhinv').innerHTML=list.filter(x=>x.kind==='join').map(row).join('');
-  const ad=await sb.rpc('is_admin');isAdmin=!!ad.data;$('admcard').hidden=!isAdmin;
-  if(isAdmin){
-    $('adminv').innerHTML=list.filter(x=>x.kind==='household').map(row).join('');
-    const hs=await sb.rpc('admin_households');
-    $('admhh').innerHTML=(hs.data||[]).map(x=>`<div class="li"><div><b>${esc(x.name)}</b><br><small>${x.members} ${x.members===1?'חבר':'חברים'} · נפתח ${new Date(x.created_at).toLocaleDateString('he-IL')}</small></div></div>`).join('');
-  }
-}
-const inviteLink=c=>location.origin+location.pathname+'?invite='+encodeURIComponent(c);
-async function shareInvite(c,kind){
-  const url=inviteLink(c),text=kind==='household'?'הזמנה לאפליקציית ניהול התקציב. הקישור אישי, לשימוש חד-פעמי:':'הזמנה להצטרף למשק הבית שלנו באפליקציית התקציב. הקישור אישי, לשימוש חד-פעמי:';
-  try{if(navigator.share){await navigator.share({text,url});return}}catch(e){if(e&&e.name==='AbortError')return}
-  try{await navigator.clipboard.writeText(text+' '+url);flash('הקישור הועתק. שלחו אותו בהודעה פרטית')}catch(e){prompt('העתיקו את הקישור:',url)}
-}
-async function makeInvite(kind,noteEl){
-  const note=noteEl?noteEl.value.trim():'';
-  const {data,error}=await sb.rpc('create_invite',{kind,note:note||null});
-  if(error){flash('לא ניתן ליצור הזמנה');return}
-  if(noteEl) noteEl.value='';
-  await shareInvite(data,kind);renderHousehold();
-}
-$('hhadd').onclick=()=>makeInvite('join',$('hhnote'));
-$('admadd').onclick=()=>makeInvite('household',$('admnote'));
-['hhinv','adminv'].forEach(id=>$(id).addEventListener('click',async e=>{
-  const s=e.target.closest('[data-ic]'),r=e.target.closest('[data-ir]');
-  if(s) return shareInvite(s.dataset.ic,id==='adminv'?'household':'join');
-  if(r){if(!confirmTwice(r,'לבטל?'))return;await sb.rpc('revoke_invite',{c:r.dataset.ir});flash('ההזמנה בוטלה');renderHousehold()}
-}));
-$('hhname').addEventListener('change',async()=>{const n=$('hhname').value.trim().slice(0,60);if(!n||!HH)return;const {error}=await sb.from('households').update({name:n}).eq('id',HH);flash(error?'לא ניתן לשמור':'השם נשמר')});
-$('delme').onclick=async()=>{
-  const last=hhMembers.length<=1;
-  if(!confirmTwice($('delme'),last?'כל הנתונים יימחקו לתמיד. לחצו שוב לאישור':'החשבון שלך יימחק. לחצו שוב לאישור')) return;
-  if(last&&HH){ /* תמונות הקבלות של משק הבית נמחקות לפני הנתונים */
-    const st=sb.storage.from('receipts'),dirs=await st.list(HH,{limit:1000});
-    for(const d of (dirs.data||[])){const f=await st.list(HH+'/'+d.name,{limit:1000});const p=(f.data||[]).map(x=>HH+'/'+d.name+'/'+x.name);if(p.length)await st.remove(p)}
-  }
-  const {error}=await sb.rpc('delete_me');
-  if(error){flash('המחיקה נכשלה. נסו שוב');return}
-  try{localStorage.clear()}catch(e){}
-  await sb.auth.signOut();flash('החשבון נמחק');
-};
 /* ---------- פריסות מסך הבית: לכל משתמש פריסות משלו (סדר הקוביות ומה מוצג), נשמרות בחשבון שלו ---------- */
 const LAYOUT=[['hero','שעה וברכה'],['rem','תזכורות החודש'],['entry','תיעוד תנועה'],['month','סיכום החודש'],['savings','חיסכון ומה שנצבר'],['people','הוצאות עבור אנשים'],['targets','יעדים לפי קטגוריה'],['pie','חלוקה לפי קטגוריות'],['log','יומן תנועות']];
 const LDEF=LAYOUT.map(x=>x[0]),LNAME=Object.fromEntries(LAYOUT),LBASE='רגיל';
@@ -2672,7 +2595,6 @@ applyBg(lget('budget-bg','')); setUser(user); lockMsg();
 if(sb){
   sb.auth.onAuthStateChange((ev,sess)=>{
     /* שם מי שמחובר: נשמר בחשבון שלו בשרת */
-    myUid=sess&&sess.user?sess.user.id:'';
     meName=sess&&sess.user&&sess.user.user_metadata?String(sess.user.user_metadata.name||''):'';tick();
     if(sess&&sess.user) setLayoutFromUser(sess.user);
     if(meName&&!user) setUser(meName);
