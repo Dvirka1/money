@@ -1,3 +1,5 @@
+/* האפליקציה לא נפתחת בתוך מסגרת של אתר אחר (הגנה מפני הטעיית לחיצות) */
+if(window.top!==window.self){document.documentElement.innerHTML='<body style="font:16px sans-serif;padding:20px" dir="rtl"><a href="'+location.href.replace(/["<>]/g,'')+'" target="_blank" rel="noopener">פתיחת האפליקציה בחלון נפרד</a></body>';throw new Error('framed')}
 /* הקטגוריות ושמות בני הבית נשמרים במסד הנתונים (מוגן בהרשאות), לא בקוד */
 let BASE_CATS=[],BASE_ICATS=[],MEMBERS=[];
 /* הרשימות בפועל: הקבועות ואחריהן הקטגוריות שנוספו מההגדרות (משותפות לשני המכשירים) */
