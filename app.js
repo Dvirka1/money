@@ -1,0 +1,2315 @@
+/* הקטגוריות ושמות בני הבית נשמרים במסד הנתונים (מוגן בהרשאות), לא בקוד */
+let BASE_CATS=[],BASE_ICATS=[],MEMBERS=[];
+/* הרשימות בפועל: הקבועות ואחריהן הקטגוריות שנוספו מההגדרות (משותפות לשני המכשירים) */
+const CATS=BASE_CATS.slice(),ICATS=BASE_ICATS.slice();
+let customCats={e:[],i:[]};
+/* חשבונות דו-חודשיים: הסכום מתחלק אוטומטית בין החודש שבו הוזן לחודש שלפניו */
+const SPLIT_CATS=['מים','חשמל','ארנונה'];
+/* הוצאות עבור אנשים: לא נספרות בהוצאות ובהכנסות של המשק, ומוצגות בקוביה נפרדת */
+const P_OUT='עבור אחרים',P_IN='החזר מאחרים',isPpl=x=>x.c===P_OUT||x.c===P_IN;
+let pplTx=[],pdir='out',pmeth='ביט';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* שתי קטגוריות הדלק (13, 14) בגווני אפור: בגלגל הצבעים הרגיל הן קרובות מדי לאדום של שכר דירה ולירוק של מים/גז */
+const color=i=>i===13?'hsl(215 14% 42%)':i===14?'hsl(32 30% 38%)':i===15?'hsl(175 80% 27%)':`hsl(${Math.round((i*137.5)%360)} 62% ${i%2?46:56}%)`;
+const money=n=>'₪'+n.toLocaleString('he-IL',{maximumFractionDigits:2});
+const money2=n=>'₪'+n.toLocaleString('he-IL',{minimumFractionDigits:2,maximumFractionDigits:2});
+const lget=(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}};
+const lset=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const nm=s=>String(s||'').trim().replace(/\s+/g,' ').toLowerCase();
+const pad=n=>String(n).padStart(2,'0');
+const keyOf=(y,m)=>y+'-'+pad(m+1);
+const curKey=()=>{const d=new Date();return keyOf(d.getFullYear(),d.getMonth())};
+const monthName=(y,m)=>new Intl.DateTimeFormat('he-IL',{month:'long',year:'numeric',calendar:'gregory'}).format(new Date(y,m,1));
+const clean=el=>{
+  let v=el.value.replace(/,/g,'.').replace(/[^\d.]/g,'');
+  const i=v.indexOf('.');
+  if(i>=0) v=v.slice(0,i+1)+v.slice(i+1).replace(/\./g,'').slice(0,2);
+  el.value=v;
+};
+
+let tx=[],target=0,catT={},recs=[],rules={},recDone=new Set();
+let mode='e',last=null,timer,user=lget('budget-user',''),logN=20,busy=false,logHidden=lget('budget-log-hidden',false)===true,logCnt=[0,0];
+const T0=new Date();
+let viewY=T0.getFullYear(),viewM=T0.getMonth(),ck=curKey();
+const isCur=()=>{const d=new Date();return viewY===d.getFullYear()&&viewM===d.getMonth()};
+function goCur(){const n=new Date();viewY=n.getFullYear();viewM=n.getMonth()}
+
+/* ---------- toast ---------- */
+function flash(t,undo){
+  $('msg').textContent=t; $('undo').hidden=!undo; $('toast').classList.add('show');
+  clearTimeout(timer); timer=setTimeout(()=>$('toast').classList.remove('show'),5000);
+}
+
+/* ---------- clock ---------- */
+function tick(){
+  const d=new Date();
+  $('date').textContent=new Intl.DateTimeFormat('he-IL',{weekday:'long',day:'numeric',month:'long',year:'numeric',calendar:'gregory'}).format(d);
+  $('time').textContent=d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false});
+  const h=d.getHours();
+  $('greet').textContent=(h<11?'בוקר טוב':h<17?'צהריים טובים':'ערב טוב')+(meName?' '+meName:'');
+  const k=curKey();
+  if(k!==ck){const was=keyOf(viewY,viewM)===ck;ck=k;if(was)goCur();load();render()}
+}
+
+/* ---------- data layer (Supabase) ---------- */
+const SUPABASE_URL='https://gwikwesoddwwzzqozgyw.supabase.co';
+const SUPABASE_KEY='sb_publishable_PaRvJ6cEF-qKGq-PJwh7Pg_xxADIYV7';
+const sb=(window.supabase&&SUPABASE_URL.startsWith('https://'))?supabase.createClient(SUPABASE_URL,SUPABASE_KEY):null;
+let mfaNeed=false;
+let authed=false,ch=null,loading=false,again=false,catching=false;
+const fromRow=r=>({id:r.id,type:r.type,a:Number(r.a),c:r.c,t:Number(r.t),by:r.by_name,note:r.note,del:!!r.del,delBy:r.del_by,editedBy:r.edited_by,prev:r.prev||null,recId:r.rec_id||null,receipt:r.receipt||null,grp:r.grp||null,person:r.person||null,method:r.method||null});
+async function load(){
+  if(!sb||!authed) return;
+  if(loading){again=true;return}
+  loading=true;
+  try{
+    const s=new Date(viewY,viewM,1).getTime(),e=new Date(viewY,viewM+1,1).getTime();
+    const [a,b,c,d,f,g]=await Promise.all([
+      sb.from('tx').select('*').gte('t',s).lt('t',e),
+      sb.from('settings').select('target,cat_targets,custom_cats,cats,members').eq('id','main').maybeSingle(),
+      sb.from('recurring').select('*'),
+      sb.from('merchant_rules').select('*'),
+      sb.from('tx').select('rec_id').eq('rec_month',curKey()),
+      sb.from('tx').select('*').in('c',[P_OUT,P_IN]).eq('del',false).order('t',{ascending:false}).limit(1000)
+    ]);
+    if(a.error){flash('אין גישה לנתונים. בדקו חיבור והרשאות');return}
+    tx=a.data.map(fromRow);
+    if(b.data){target=Number(b.data.target)||0;catT=b.data.cat_targets||{};setBase(b.data.cats,b.data.members);setCustom(b.data.custom_cats,true)}
+    recs=(c.data||[]).map(r=>({id:r.id,type:r.type,c:r.c,a:Number(r.a),day:r.day,auto:!!r.auto,active:!!r.active}));
+    rules={}; (d.data||[]).forEach(r=>{rules[r.merchant]=r.category});
+    recDone=new Set((f.data||[]).map(r=>r.rec_id));
+    pplTx=(g&&g.data||[]).map(fromRow);
+    busy=false;
+    if(!$('ap').hidden) apSuggest(); /* החלונית נפתחת לפני שהכללים נטענו */
+    if(document.activeElement!==$('tgt')) $('tgt').value=target||'';
+    render(); renderSettings();
+    if(!$('v-rc').hidden) loadReceipts();
+    await catchUp();
+  }finally{loading=false;if(again){again=false;load()}}
+}
+const loadSoon=(()=>{let t;return()=>{clearTimeout(t);t=setTimeout(load,250)}})();
+function live(){
+  if(ch||!sb) return;
+  ch=sb.channel('live');
+  ['tx','settings','recurring','merchant_rules'].forEach(t=>{ch=ch.on('postgres_changes',{event:'*',schema:'public',table:t},loadSoon)});
+  ch.subscribe();
+}
+/* הוראות קבע אוטומטיות שעדיין לא נוספו (בנוסף לעבודה היומית בשרת). המפתח הייחודי מונע כפילויות */
+async function catchUp(){
+  if(catching) return;
+  const d=new Date();
+  const due=recs.filter(r=>r.active&&r.auto&&r.day<=d.getDate()&&!recDone.has(r.id));
+  if(!due.length) return;
+  catching=true;
+  try{
+    const rows=due.map(r=>({type:r.type,a:r.a,c:r.c,t:new Date(d.getFullYear(),d.getMonth(),r.day,12).getTime(),by_name:'הוראת קבע',rec_id:r.id,rec_month:curKey()}));
+    const {error}=await sb.from('tx').upsert(rows,{onConflict:'rec_id,rec_month',ignoreDuplicates:true});
+    if(!error) setTimeout(load,0);
+  }finally{catching=false}
+}
+async function addTx(o){
+  if(!user){flash('בחרו קודם מי מתעד');return false}
+  const row=o=>({type:o.type,a:o.a,c:o.c,t:o.t,by_name:user,note:o.note||null,rec_id:o.rec_id||null,rec_month:o.rec_month||null,receipt:o.receipt||null,grp:o.grp||null,person:o.person||null,method:o.method||null});
+  const many=Array.isArray(o.parts);
+  const q=many?sb.from('tx').insert(o.parts.map(row)).select('id'):sb.from('tx').insert(row(o)).select('id').single();
+  const {data,error}=await q;
+  if(error){flash(error.code==='23505'?'כבר נוסף החודש':'לא ניתן לשמור. בדקו חיבור לאינטרנט');await load();return false}
+  last=many?data[0].id:data.id; goCur(); await load(); return true;
+}
+const uuid=()=>(crypto.randomUUID?crypto.randomUUID():'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
+/* חלוקה לשני חודשים: חצי בתאריך של היום, וחצי באותו יום בחודש הקודם (או ביום האחרון שלו) */
+function splitParts(o){
+  const d=new Date(o.t),pm=new Date(d.getFullYear(),d.getMonth()-1,1);
+  const day=Math.min(d.getDate(),new Date(pm.getFullYear(),pm.getMonth()+1,0).getDate());
+  const t2=new Date(pm.getFullYear(),pm.getMonth(),day,d.getHours(),d.getMinutes()).getTime();
+  const a1=Math.round(o.a*50)/100,a2=Math.round((o.a-a1)*100)/100,grp=uuid();
+  const tag=`חצי מחשבון של ${money2(o.a)}`;
+  const n=s=>o.note?o.note+' · '+s:s;
+  return {grp,parts:[{...o,a:a1,grp,note:n(tag)},{...o,a:a2,t:t2,grp,note:n(tag)}],a1,a2,m1:monthName(d.getFullYear(),d.getMonth()),m2:monthName(pm.getFullYear(),pm.getMonth())};
+}
+async function setDel(id,on){
+  if(!user){flash('בחרו קודם מי מתעד');return false}
+  const p=on?{del:true,del_by:user,del_t:Date.now()}:{del:false,del_by:null,del_t:null};
+  const x=tx.find(t=>t.id===id)||pplTx.find(t=>t.id===id);
+  /* חשבון שחולק לשני חודשים: שני החצאים נמחקים ומשוחזרים יחד */
+  const {error}=x&&x.grp?await sb.from('tx').update(p).eq('grp',x.grp):await sb.from('tx').update(p).eq('id',id);
+  if(error){flash('לא ניתן לעדכן. בדקו חיבור לאינטרנט');return false}
+  sb.from('receipt_items').update({del:!!on}).eq('tx_id',id).then(()=>{itemsDirty=true}); /* הוצאה שנמחקה לא נספרת בהשוואת המחירים */
+  await load(); return true;
+}
+async function saveRule(merchant,cat){
+  const k=nm(merchant); if(!k||!sb) return;
+  const {error}=await sb.from('merchant_rules').upsert({merchant:k,category:cat,updated_by:user,updated_t:Date.now()});
+  if(!error) rules[k]=cat;
+}
+
+/* ---------- render ---------- */
+function arc(a,b){
+  const x0=Math.cos(a),y0=Math.sin(a),x1=Math.cos(b),y1=Math.sin(b);
+  return `M0 0L${x0} ${y0}A1 1 0 ${b-a>Math.PI?1:0} 1 ${x1} ${y1}Z`;
+}
+function render(){
+  const cur=isCur(),now=new Date();
+  const m=tx.filter(x=>!x.del);
+  const sums=CATS.map(()=>0); let exp=0,inc=0;
+  m.forEach(x=>{
+    if(isPpl(x)) return;
+    if(x.type==='i') inc+=x.a;
+    else{exp+=x.a;const i=CATS.indexOf(x.c);if(i>=0)sums[i]+=x.a}
+  });
+  $('mon').textContent=monthName(viewY,viewM);
+  $('mnext').disabled=cur; $('mback').hidden=cur;
+  $('tl').textContent=cur?'סך הוצאות החודש':'סך הוצאות'; $('il').textContent=cur?'הכנסות החודש':'הכנסות';
+  $('total').textContent=money(exp); $('inc').textContent=money(inc);
+  $('bal').textContent=money(inc-exp); $('bal').classList.toggle('neg',inc-exp<0);
+  $('logt').textContent=cur?'יומן תנועות החודש':'יומן תנועות '+monthName(viewY,viewM);
+
+  const bar=$('bar');
+  if(target>0){
+    const p=exp/target;
+    bar.style.width=Math.min(100,p*100)+'%'; bar.classList.toggle('over',exp>target);
+    let t=exp<=target?`יעד ההוצאות ${money(target)}: נשארו ${money(target-exp)} (${Math.round(p*100)}% נוצלו)`:`חריגה של ${money(exp-target)} מעל יעד של ${money(target)}`;
+    if(cur&&exp<target){const left=new Date(now.getFullYear(),now.getMonth()+1,0).getDate()-now.getDate()+1;t+=`. אפשר להוציא עד ${money((target-exp)/left)} ביום עד סוף החודש.`}
+    $('tinfo').textContent=t;
+  }else{
+    bar.style.width='0'; bar.classList.remove('over');
+    $('tinfo').textContent='עוד לא הוגדר יעד הוצאות. אפשר להגדיר אותו במסך ההגדרות.';
+  }
+
+  /* יעדים לפי קטגוריה */
+  const items=CATS.map((c,i)=>({c,v:sums[i],t:Number(catT[c])||0})).filter(x=>x.t>0).map(x=>({...x,p:x.v/x.t})).sort((a,b)=>b.p-a.p);
+  $('ctcard').hidden=!items.length;
+  $('ct').innerHTML=items.map(x=>`<div class="tg" data-cat="${esc(x.c)}" role="button" tabindex="0"><div class="tt"><span>${esc(x.c)}</span><span>${money(x.v)} מתוך ${money(x.t)}</span></div><div class="bar sm"><i class="${x.v>x.t?'over':''}" style="width:${Math.min(100,x.p*100)}%"></i></div><small class="${x.v>x.t?'neg':''}">${x.v>x.t?'חריגה של '+money(x.v-x.t):'נשארו '+money(x.t-x.v)}</small></div>`).join('');
+
+  renderRem(); renderLog(tx); renderCat(); renderPpl();
+
+  const used=CATS.map((c,i)=>({c,i,v:sums[i]})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
+  const pie=$('pie'),lg=$('legend');
+  if(!used.length){
+    pie.innerHTML='<circle r="1" fill="var(--chip)" stroke="var(--line)" stroke-width=".02"/>';
+    lg.innerHTML=`<p class="empty">${busy?'טוען...':cur?'עוד אין הוצאות החודש. הקלידו סכום למעלה כדי להתחיל.':'אין הוצאות בחודש הזה.'}</p>`;
+    return;
+  }
+  let ang=-Math.PI/2,h='';
+  if(used.length===1) h=`<circle r="1" fill="${color(used[0].i)}" data-cat="${esc(used[0].c)}"/>`;
+  else used.forEach(x=>{
+    const end=ang+x.v/exp*2*Math.PI;
+    h+=`<path d="${arc(ang,end)}" fill="${color(x.i)}" stroke="var(--card)" stroke-width=".02" data-cat="${esc(x.c)}"/>`;
+    ang=end;
+  });
+  pie.innerHTML=h;
+  lg.innerHTML=used.map(x=>`<button type="button" class="row rb" data-cat="${esc(x.c)}" aria-label="החיובים בקטגוריה ${esc(x.c)}"><i style="background:${color(x.i)}"></i><span class="n">${esc(x.c)}</span><span class="p">${Math.round(x.v/exp*100)}%</span><span class="v">${money(x.v)}</span><span class="chev" aria-hidden="true">›</span></button>`).join('');
+}
+
+/* תזכורות להוראות קבע שלא נוספות אוטומטית */
+function renderRem(){
+  const d=new Date();
+  const due=recs.filter(r=>r.active&&!r.auto&&r.day<=d.getDate()&&!recDone.has(r.id));
+  $('remcard').hidden=!(isCur()&&due.length);
+  if(document.activeElement&&$('rem').contains(document.activeElement)) return;
+  $('rem').innerHTML=due.map(r=>`<div class="rem" data-id="${esc(r.id)}"><div class="rt"><b>${esc(r.c)}</b><small>${r.type==='i'?'הכנסה':'הוצאה'} קבועה, יום ${r.day} בחודש</small></div><div class="amt sm"><span>₪</span><input type="text" inputmode="decimal" value="${r.a}" aria-label="סכום ${esc(r.c)}"></div><button class="btn" data-act="add">הוספה</button></div>`).join('');
+}
+$('rem').addEventListener('input',e=>{if(e.target.matches('input'))clean(e.target)});
+$('rem').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-act="add"]'); if(!b) return;
+  const row=b.closest('.rem'),r=recs.find(x=>x.id===row.dataset.id);
+  const a=parseFloat(row.querySelector('input').value);
+  if(!r||!(a>0)){flash('הקלידו סכום');return}
+  const d=new Date();
+  if(await addTx({type:r.type,a,c:r.c,t:new Date(d.getFullYear(),d.getMonth(),r.day,12).getTime(),rec_id:r.id,rec_month:curKey()}))
+    flash(`${r.type==='i'?'נשמרה הכנסה':'נשמרה הוצאה'}: ${r.c} ${money(a)}`,true);
+});
+
+/* ---------- month navigation ---------- */
+function gotoMonth(y,m){viewY=y;viewM=m;logN=20;tx=[];busy=true;render();load()}
+$('mprev').onclick=()=>{const d=new Date(viewY,viewM-1,1);gotoMonth(d.getFullYear(),d.getMonth())};
+$('mnext').onclick=()=>{if(isCur())return;const d=new Date(viewY,viewM+1,1);gotoMonth(d.getFullYear(),d.getMonth())};
+$('mback').onclick=()=>{const n=new Date();gotoMonth(n.getFullYear(),n.getMonth())};
+
+/* ---------- entry ---------- */
+const amt=$('amt');
+function syncEntry(){
+  const ok=parseFloat(amt.value)>0;
+  $('cats').classList.toggle('open',ok&&mode==='e');
+  $('incats').classList.toggle('open',ok&&mode==='i');
+}
+amt.addEventListener('input',()=>{clean(amt);syncEntry()});
+function setMode(m){
+  mode=m; $('te').setAttribute('aria-pressed',m==='e'); $('ti').setAttribute('aria-pressed',m==='i'); syncEntry();
+}
+$('te').onclick=()=>setMode('e'); $('ti').onclick=()=>setMode('i');
+async function commit(o,text){
+  const note=$('note').value.trim(); if(note) o.note=note;
+  if(o.type==='e'&&SPLIT_CATS.includes(o.c)){
+    const s=splitParts(o);
+    if(await addTx({parts:s.parts})){amt.value='';$('note').value=''; syncEntry(); flash(`${text}. חולק: ${money2(s.a1)} ב${s.m1} ו-${money2(s.a2)} ב${s.m2}`,true)}
+    return;
+  }
+  if(await addTx(o)){amt.value='';$('note').value=''; syncEntry(); flash(text,true)}
+}
+$('grid').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  const a=parseFloat(amt.value); if(!(a>0)) return;
+  const c=CATS[+b.dataset.i];
+  commit({type:'e',a,c,t:Date.now()},`נשמרו ${money(a)} ב${c}`);
+});
+$('igrid').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  const a=parseFloat(amt.value); if(!(a>0)) return;
+  const c=ICATS[+b.dataset.i];
+  commit({type:'i',a,c,t:Date.now()},`נשמרה הכנסה של ${money(a)} (${c})`);
+});
+$('undo').onclick=()=>{if(last){setDel(last,true);last=null}$('toast').classList.remove('show')};
+function setUser(u){
+  user=u; lset('budget-user',u);
+  document.querySelectorAll('#usr button,#apusr button,#rcusr button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.u===u));
+}
+$('usr').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setUser(b.dataset.u)});
+
+/* ---------- log: edit / delete / restore ---------- */
+/* שורה ביומן: משמשת גם ביומן החודש וגם ברשימת החיובים של קטגוריה */
+function logRow(x){
+    const d=new Date(x.t),inc=x.type==='i',id=esc(x.id);
+    const when=d.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    const rcb=x.receipt?`<button class="lb" data-act="rcp" data-p="${esc(x.receipt)}" data-id="${id}">קבלה</button>`:'';
+    const btns=x.del?`<button class="lb" data-act="restore" data-id="${id}">שחזור</button>`:`<button class="lb" data-act="edit" data-id="${id}">עריכה</button>${rcb}<button class="lb" data-act="del" data-id="${id}">מחיקה</button>`;
+    return `<div class="lg${x.del?' del':''}"><div class="lt"><b>${esc(x.c)}</b><span class="${inc?'pos':''}">${inc?'+':''}${money(x.a)}</span></div>${x.note?`<small>${esc(x.note)}</small>`:''}<small>${when}${x.by?', נרשם על ידי '+esc(x.by):''}</small>${x.editedBy?`<small>נערך על ידי ${esc(x.editedBy)}${x.prev?`, במקור ${money(x.prev.a)} ב${esc(x.prev.c)}`:''}</small>`:''}${x.del?`<small>נמחק על ידי ${esc(x.delBy)||'לא ידוע'}</small>`:''}<div class="acts">${btns}</div></div>`;
+  }
+function renderLog(list){
+  const rows=[...list].sort((a,b)=>b.t-a.t);
+  $('log').innerHTML=rows.length?rows.slice(0,logN).map(logRow).join(''):`<p class="empty">${busy?'טוען...':'אין תנועות בחודש הזה.'}</p>`;
+  logVis(rows.length,rows.filter(x=>!x.del).length);
+}
+/* hide / show the month log; the choice is remembered on this device */
+function logVis(total,live){
+  if(total!=null) logCnt=[total,live];
+  const [t,l]=logCnt;
+  $('log').hidden=logHidden;
+  $('loghid').hidden=!logHidden;
+  $('more').hidden=logHidden||t<=logN;
+  if(logHidden) $('loghid').textContent=busy?'היומן מוסתר.':l?`היומן מוסתר (${l} ${l===1?'תנועה':'תנועות'})`:'היומן מוסתר.';
+  const b=$('logtog'); b.textContent=logHidden?'הצגה':'הסתרה'; b.setAttribute('aria-expanded',String(!logHidden));
+}
+$('logtog').onclick=()=>{logHidden=!logHidden;lset('budget-log-hidden',logHidden);logVis()};
+let editing=null;
+function openEdit(id){
+  const x=tx.find(t=>t.id===id)||pplTx.find(t=>t.id===id); if(!x) return;
+  editing=x;
+  $('edamt').value=x.a;
+  const list=isPpl(x)?[x.c]:x.type==='i'?ICATS:CATS;
+  $('edc').innerHTML=(list.includes(x.c)?list:[x.c,...list]).map(c=>`<option${c===x.c?' selected':''}>${esc(c)}</option>`).join('');
+  const d=new Date(x.t);
+  $('edd').value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const n=new Date(); $('edd').max=n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate());
+  $('edn').value=x.note||'';
+  $('edinfo').textContent=(x.type==='i'?'הכנסה':'הוצאה')+(x.by?' שנרשמה על ידי '+x.by:'')+'. בשמירה יירשם שערכתם אותה, והערכים המקוריים יישמרו ביומן.';
+  $('ed').hidden=false; $('edamt').focus();
+}
+function closeEdit(){$('ed').hidden=true;editing=null}
+$('edamt').addEventListener('input',()=>clean($('edamt')));
+$('edx').onclick=closeEdit;
+$('edsave').onclick=async()=>{
+  const x=editing; if(!x) return;
+  if(!user){flash('בחרו קודם מי מתעד');return}
+  const a=parseFloat($('edamt').value); if(!(a>0)){flash('הקלידו סכום');return}
+  const c=$('edc').value,note=$('edn').value.trim();
+  const [Y,M,D]=$('edd').value.split('-').map(Number); if(!Y){flash('בחרו תאריך');return}
+  const od=new Date(x.t),nt=new Date(Y,M-1,D,od.getHours(),od.getMinutes()).getTime();
+  if(a===x.a&&c===x.c&&nt===x.t&&note===(x.note||'')){closeEdit();return}
+  const prev=x.prev||{a:x.a,c:x.c,t:x.t,note:x.note||null};
+  const {error}=await sb.from('tx').update({a,c,t:nt,note:note||null,edited_by:user,edited_t:Date.now(),prev}).eq('id',x.id);
+  if(error){flash('לא ניתן לשמור את השינוי. בדקו חיבור לאינטרנט');return}
+  if(x.receipt&&(c!==x.c||nt!==x.t)){await sb.from('receipt_items').update({cat:c,t:nt}).eq('tx_id',x.id);itemsDirty=true} /* הפירוט עוקב אחרי הקטגוריה והתאריך של ההוצאה */
+  closeEdit(); flash('התנועה עודכנה'); await load();
+};
+async function logClick(e){
+  const b=e.target.closest('.lb'); if(!b) return;
+  const act=b.dataset.act;
+  if(act==='edit') return openEdit(b.dataset.id);
+  if(act==='rcp'){const x=tx.find(t=>t.id===b.dataset.id);return openReceipt(b.dataset.p,x?`${x.c}, ${money(x.a)}${x.note?', '+x.note:''}`:'',b.dataset.id,x?{a:x.a,c:x.c,n:x.note||'',t:x.t}:null)}
+  const del=act==='del';
+  if(await setDel(b.dataset.id,del)) flash(del?'התנועה נמחקה ונשארה ביומן. אפשר לשחזר אותה':'התנועה שוחזרה');
+}
+$('log').addEventListener('click',logClick);
+$('cvl').addEventListener('click',logClick);
+
+/* ---------- גרסה חדשה של האתר ----------
+   אפליקציה שנשמרה במסך הבית של הטלפון יכולה להמשיך להציג גרסה ישנה. כשחוזרים לאפליקציה בודקים אם הדף השתנה, ואם כן טוענים אותו מחדש */
+let pageSig=null;
+const sigOf=async()=>{try{const rs=await Promise.all([location.pathname,'app.js'].map(u=>fetch(u,{cache:'no-store'})));if(rs.some(r=>!r.ok))return null;const t=(await Promise.all(rs.map(r=>r.text()))).join('');let x=0;for(let i=0;i<t.length;i++)x=(x*31+t.charCodeAt(i))|0;return t.length+':'+x}catch(e){return null}};
+sigOf().then(s=>{pageSig=s});
+document.addEventListener('visibilitychange',async()=>{
+  if(document.visibilityState!=='visible'||!pageSig) return;
+  const s=await sigOf();
+  /* לא מרעננים באמצע הקלדה או כשחלון פתוח */
+  const busyUI=$('amt').value||$('note').value||$('pamt').value||!$('ed').hidden||!$('sc').hidden||!$('rcform').hidden;
+  if(s&&s!==pageSig){if(busyUI)flash('יש גרסה חדשה של האפליקציה. היא תיטען בפעם הבאה');else location.reload()}
+});
+
+/* ---------- הוצאות עבור אנשים: כמה יצא, כמה חזר, וממי עוד צריך לקבל ---------- */
+let pPerson=null;
+function pplSet(d){
+  pdir=d;$('pdo').setAttribute('aria-pressed',String(d==='out'));$('pdi').setAttribute('aria-pressed',String(d==='in'));
+  $('pmeth').hidden=d!=='in'; /* דרך ההחזר: ביט, העברה בנקאית וכו' */
+}
+function methSet(m){pmeth=m;$('pmeth').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.textContent===m)))}
+$('pdo').onclick=()=>pplSet('out');$('pdi').onclick=()=>pplSet('in');
+$('pmeth').addEventListener('click',e=>{const b=e.target.closest('button');if(b)methSet(b.textContent)});
+methSet('ביט');
+$('pamt').addEventListener('input',()=>clean($('pamt')));
+const pOpen=on=>{$('pform').hidden=!on;$('padd').setAttribute('aria-expanded',String(on));$('padd').textContent=on?'סגירה':'תיעוד';if(on)$('pamt').focus()};
+$('padd').onclick=()=>pOpen($('pform').hidden);
+$('psave').onclick=async()=>{
+  const a=parseFloat($('pamt').value);if(!(a>0)){flash('הקלידו סכום');$('pamt').focus();return}
+  const name=$('pname').value.replace(/\s+/g,' ').trim();if(!name){flash('למי או ממי?');$('pname').focus();return}
+  const inn=pdir==='in',extra=$('pnote').value.trim(),note=[name,inn?pmeth:'',extra].filter(Boolean).join(' · ');
+  const o={type:inn?'i':'e',a,c:inn?P_IN:P_OUT,t:Date.now(),person:name,method:inn?pmeth:null,note};
+  if(await addTx(o)){
+    $('pamt').value='';$('pnote').value='';
+    flash(pdir==='in'?`נרשם: ${money(a)} חזרו מ${name} (${pmeth})`:`נרשם: ${money(a)} עבור ${name}`,true);
+  }
+};
+function renderPpl(){
+  const out=pplTx.filter(x=>x.c===P_OUT),inn=pplTx.filter(x=>x.c===P_IN);
+  const so=out.reduce((s,x)=>s+x.a,0),si=inn.reduce((s,x)=>s+x.a,0),p=so>0?Math.min(1,si/so):0;
+  $('pout').textContent=money(so);$('pin').textContent=money(si);
+  $('poutn').textContent=out.length?`${out.length} ${out.length===1?'תשלום':'תשלומים'}`:'';
+  $('pinn').textContent=inn.length?`${inn.length} ${inn.length===1?'החזר':'החזרים'}`:'';
+  $('pbar').style.width=(p*100)+'%';$('pbar').classList.toggle('over',si>so+0.005);
+  $('pinfo').textContent=!pplTx.length?'כשמשלמים עבור מישהו או מקבלים ממנו כסף בחזרה, מתעדים כאן. הסכומים לא נספרים בהוצאות ובהכנסות של הבית.'
+    :so-si>0.005?`חזרו ${Math.round(si/so*100)}%. נשאר לקבל ${money(so-si)}`:si-so>0.005?`חזר ${money(si-so)} יותר ממה שיצא`:'הכול חזר';
+  /* לפי אדם */
+  const by={};
+  pplTx.forEach(x=>{const n=(x.person||'ללא שם').trim(),r=by[n]||(by[n]={n,o:0,i:0,last:0,m:{}});if(x.c===P_OUT)r.o+=x.a;else{r.i+=x.a;if(x.method)r.m[x.method]=(r.m[x.method]||0)+x.a}if(x.t>r.last)r.last=x.t});
+  const ppl=Object.values(by).sort((a,b)=>(b.o-b.i)-(a.o-a.i)||b.last-a.last);
+  $('pnames').innerHTML=ppl.map(r=>`<option value="${esc(r.n)}">`).join('');
+  let h=ppl.length?'<h3>לפי אדם</h3>'+ppl.map(r=>{
+    const d=r.o-r.i,ms=Object.keys(r.m).map(k=>`${k} ${money(r.m[k])}`).join(', ');
+    return `<button type="button" class="pp" data-p="${esc(r.n)}"><span><b>${esc(r.n)}</b><small>יצא ${money(r.o)} · חזר ${money(r.i)}${ms?' ('+esc(ms)+')':''}</small></span><b class="${d>0.005?'due':'ok'}">${d>0.005?'חייב '+money(d):d<-0.005?'עודף '+money(-d):'סגור'}</b></button>`;
+  }).join(''):'';
+  if(pPerson&&by[pPerson]){
+    const rows=pplTx.filter(x=>(x.person||'ללא שם').trim()===pPerson);
+    h+=`<h3>התנועות של ${esc(pPerson)}</h3>`+rows.map(logRow).join('');
+  }
+  $('plist').innerHTML=h;
+}
+$('plist').addEventListener('click',e=>{
+  if(e.target.closest('.lb')) return logClick(e);
+  const b=e.target.closest('.pp');if(!b) return;
+  pPerson=pPerson===b.dataset.p?null:b.dataset.p;$('pname').value=b.dataset.p;renderPpl();
+});
+
+/* ---------- החיובים של קטגוריה אחת בחודש המוצג ---------- */
+let cvCat=null;
+function openCat(c){cvCat=c;renderCat();$('cv').hidden=false;$('cvx').focus()}
+function closeCat(){cvCat=null;$('cv').hidden=true}
+function renderCat(){
+  if(cvCat==null) return;
+  const rows=tx.filter(x=>x.type==='e'&&x.c===cvCat).sort((a,b)=>b.t-a.t),live=rows.filter(x=>!x.del);
+  const sum=live.reduce((s,x)=>s+Number(x.a),0),t=Number(catT[cvCat])||0;
+  $('cvt').textContent=cvCat;
+  $('cvs').textContent=(isCur()?'החודש':monthName(viewY,viewM))+': '+(live.length?`${live.length} ${live.length===1?'חיוב':'חיובים'}, סך הכול ${money(sum)}`:'אין חיובים')+(t>0?` · יעד ${money(t)}`:'');
+  $('cvl').innerHTML=rows.length?rows.map(logRow).join(''):'<p class="empty">אין חיובים בקטגוריה הזו בחודש הזה.</p>';
+}
+$('cvx').onclick=closeCat;
+$('cv').addEventListener('click',e=>{if(e.target===$('cv'))closeCat()});
+/* לחיצה על קטגוריה: בשורות של החלוקה, בעוגה וביעדים */
+['legend','pie','ct'].forEach(id=>$(id).addEventListener('click',e=>{const el=e.target.closest('[data-cat]');if(el)openCat(el.dataset.cat)}));
+$('more').onclick=()=>{logN+=20;render()};
+
+/* ---------- Apple Pay popup ---------- */
+function parseAmt(v){
+  v=String(v||'').replace(/[^\d.,]/g,'');
+  if(v.includes(',')&&v.includes('.')) v=v.lastIndexOf(',')>v.lastIndexOf('.')?v.replace(/\./g,'').replace(',','.'):v.replace(/,/g,'');
+  else if(v.includes(',')) v=/,\d{1,2}$/.test(v)?v.replace(',','.'):v.replace(/,/g,'');
+  return parseFloat(v)||0;
+}
+let apSug=null;
+function apSuggest(){
+  const c=rules[nm($('apm').value)];
+  apSug=c&&CATS.includes(c)?c:null;
+  $('apsug').hidden=!apSug;
+  if(apSug) $('apone').textContent='שמירה ב'+apSug;
+  $('aphint').textContent=apSug?'או בחרו קטגוריה אחרת:':'בחרו קטגוריה כדי לשמור את ההוצאה';
+}
+function apayCheck(){
+  const p=lget('budget-pending',null);
+  if(!p||!authed) return;
+  $('apamt').value=p.a||''; $('apm').value=p.m||''; apSuggest(); $('ap').hidden=false;
+}
+function closeAp(){$('ap').hidden=true;lset('budget-pending',null)}
+async function apSave(cat){
+  const a=parseFloat($('apamt').value); if(!(a>0)){flash('הקלידו סכום');return}
+  const merchant=$('apm').value.trim();
+  if(await addTx({type:'e',a,c:cat,t:Date.now(),note:merchant})){
+    if(merchant) await saveRule(merchant,cat);
+    closeAp(); flash(`נשמרו ${money(a)} ב${cat}`,true);
+  }
+}
+$('apamt').addEventListener('input',()=>clean($('apamt')));
+$('apm').addEventListener('input',apSuggest);
+$('apusr').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setUser(b.dataset.u)});
+$('apx').onclick=closeAp;
+$('apone').onclick=()=>{if(apSug)apSave(apSug)};
+$('apgrid').addEventListener('click',e=>{const b=e.target.closest('button');if(b)apSave(CATS[+b.dataset.i])});
+$('ct').addEventListener('keydown',e=>{const el=e.target.closest('[data-cat]');if(el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openCat(el.dataset.cat)}});
+addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('cv').hidden&&$('ed').hidden&&$('rv').hidden&&$('zv').hidden&&$('sc').hidden){closeCat();return}if(!$('zv').hidden)zvClose();else if(!$('sc').hidden)$('scx').click();else if(!$('rv').hidden)closeRv();else if(!$('ed').hidden)closeEdit();else if(!$('ap').hidden)closeAp()}});
+
+/* ---------- settings ---------- */
+const VIEWS={settings:'v-set',more:'v-more',receipts:'v-rc',discount:'v-disc',prices:'v-pr'};
+function show(){
+  const cur=VIEWS[location.hash.slice(1)]||'v-home';
+  $('v-login').hidden=authed||mfaNeed; $('v-mfa').hidden=!mfaNeed;
+  ['v-home','v-set','v-more','v-rc','v-disc','v-pr'].forEach(id=>{$(id).hidden=!authed||id!==cur});
+  window.scrollTo(0,0);
+  if(cur==='v-rc'&&authed){loadReceipts();loadItems()}
+  if(cur==='v-pr'&&authed) renderPrices();
+  if(cur!=='v-rc'&&tw&&!rcBusy){tw.terminate();tw=null} /* משחרר זיכרון של מנוע הקריאה */
+}
+$('gear').onclick=()=>{location.hash='settings'};
+$('back').onclick=()=>{location.hash='home'};
+$('morebtn').onclick=()=>{location.hash='more'};
+$('mrback').onclick=()=>{location.hash='home'};
+$('nvrc').onclick=()=>{location.hash='receipts'};
+$('nvds').onclick=()=>{location.hash='discount'};
+$('nvpr').onclick=()=>{location.hash='prices'};
+$('prback').onclick=()=>{location.hash='more'};
+$('rcback').onclick=()=>{location.hash='more'};
+$('dsback').onclick=()=>{location.hash='more'};
+addEventListener('hashchange',show);
+
+async function saveSettings(patch,okMsg){
+  const {error}=await sb.from('settings').upsert({id:'main',...patch});
+  if(error){flash('לא ניתן לשמור. בדקו חיבור לאינטרנט');return false}
+  if(okMsg) flash(okMsg); return true;
+}
+$('tgt').addEventListener('input',()=>clean($('tgt')));
+$('tgt').addEventListener('change',async()=>{
+  const n=parseFloat($('tgt').value)||0;
+  if(await saveSettings({target:n},n?`היעד נשמר: ${money(n)}`:'היעד נוקה')){target=n;render()}
+});
+
+/* יעד לכל קטגוריה */
+$('ctset').addEventListener('input',e=>{if(e.target.matches('input'))clean(e.target)});
+$('ctset').addEventListener('change',async()=>{
+  const o={};
+  $('ctset').querySelectorAll('input').forEach(i=>{const n=parseFloat(i.value);if(n>0)o[i.dataset.c]=n});
+  if(await saveSettings({cat_targets:o},'היעדים נשמרו')){catT=o;render()}
+});
+
+/* הוראות קבע */
+let rtype='e';
+function fillRC(){$('rc').innerHTML=(rtype==='i'?ICATS:CATS).map(c=>`<option>${esc(c)}</option>`).join('')}
+fillRC();
+$('rday').innerHTML=Array.from({length:28},(_,i)=>`<option value="${i+1}">ביום ${i+1} בחודש</option>`).join('');
+$('rte').onclick=()=>{rtype='e';$('rte').setAttribute('aria-pressed','true');$('rti').setAttribute('aria-pressed','false');fillRC()};
+$('rti').onclick=()=>{rtype='i';$('rti').setAttribute('aria-pressed','true');$('rte').setAttribute('aria-pressed','false');fillRC()};
+$('ra').addEventListener('input',()=>clean($('ra')));
+$('radd').onclick=async()=>{
+  const a=parseFloat($('ra').value); if(!(a>0)){flash('הקלידו סכום חודשי');return}
+  if(!user){flash('בחרו קודם מי מתעד');return}
+  const {error}=await sb.from('recurring').insert({type:rtype,c:$('rc').value,a,day:+$('rday').value,auto:$('rauto').checked,created_by:user});
+  if(error){flash('לא ניתן לשמור. בדקו חיבור לאינטרנט');return}
+  $('ra').value=''; flash('הוראת הקבע נוספה'); await load();
+};
+let armed=null;
+$('rlist').addEventListener('click',async e=>{
+  const b=e.target.closest('.lb'); if(!b) return;
+  const id=b.dataset.id,r=recs.find(x=>x.id===id); if(!r) return;
+  if(b.dataset.act==='tog'){
+    const {error}=await sb.from('recurring').update({active:!r.active}).eq('id',id);
+    if(error) flash('לא ניתן לעדכן'); else await load();
+  }else{
+    if(armed!==id){armed=id;b.textContent='לחצו שוב למחיקה';setTimeout(()=>{if(armed===id){armed=null;b.textContent='מחיקה'}},4000);return}
+    armed=null;
+    const {error}=await sb.from('recurring').delete().eq('id',id);
+    if(error) flash('לא ניתן למחוק'); else {flash('הוראת הקבע נמחקה. תנועות שכבר נוספו נשארו');await load()}
+  }
+});
+$('mrlist').addEventListener('click',async e=>{
+  const b=e.target.closest('.lb'); if(!b) return;
+  const {error}=await sb.from('merchant_rules').delete().eq('merchant',b.dataset.m);
+  if(error) flash('לא ניתן למחוק'); else {delete rules[b.dataset.m];flash('הכלל נמחק');await load()}
+});
+/* בונה מחדש את כל המקומות שמציגים את רשימת הקטגוריות */
+function buildCats(){
+  const btns=l=>l.map((c,i)=>`<button type="button" data-i="${i}">${esc(c)}</button>`).join('');
+  $('grid').innerHTML=btns(CATS);$('igrid').innerHTML=btns(ICATS);$('apgrid').innerHTML=btns(CATS);
+  $('ctset').innerHTML=CATS.map(c=>`<div class="ct"><span>${esc(c)}</span><input class="txt" type="text" inputmode="decimal" data-c="${esc(c)}" placeholder="ללא יעד" aria-label="יעד ל${esc(c)}"></div>`).join('');
+  fillRC();
+}
+const cleanList=a=>Array.isArray(a)?a.map(s=>String(s||'').trim()).filter(Boolean).slice(0,60):[];
+function setBase(c,m){
+  const e=cleanList(c&&c.e),i=cleanList(c&&c.i),mm=cleanList(m).slice(0,6);
+  const ch=JSON.stringify([e,i])!==JSON.stringify([BASE_CATS,BASE_ICATS]);
+  BASE_CATS=e;BASE_ICATS=i;
+  if(JSON.stringify(mm)!==JSON.stringify(MEMBERS)){MEMBERS=mm;buildMembers()}
+  return ch;
+}
+function setCustom(v,force){
+  const n={e:cleanList(v&&v.e),i:cleanList(v&&v.i)};
+  if(!force&&JSON.stringify(n)===JSON.stringify(customCats)) return;
+  customCats=n;
+  const before=JSON.stringify([CATS,ICATS]);
+  CATS.splice(0,CATS.length,...BASE_CATS,...n.e.filter(c=>!BASE_CATS.includes(c)));
+  ICATS.splice(0,ICATS.length,...BASE_ICATS,...n.i.filter(c=>!BASE_ICATS.includes(c)));
+  if(JSON.stringify([CATS,ICATS])!==before){buildCats();if(!$('ap').hidden)apSuggest()}
+}
+/* כפתורי "מי מתעד" נבנים משמות בני הבית */
+function buildMembers(){
+  const html=MEMBERS.map(n=>`<button type="button" data-u="${esc(n)}" aria-pressed="false">${esc(n)}</button>`).join('');
+  ['usr','apusr','rcusr'].forEach(id=>{$(id).innerHTML=html});
+  if(meName&&MEMBERS.includes(meName)&&(!user||!MEMBERS.includes(user))) user=meName;
+  setUser(user);
+}
+/* הוספת קטגוריה ומחיקה של קטגוריה שנוספה */
+let nctype='e';
+const ncSet=t=>{nctype=t;$('nce').setAttribute('aria-pressed',String(t==='e'));$('nci').setAttribute('aria-pressed',String(t==='i'))};
+$('nce').onclick=()=>ncSet('e');$('nci').onclick=()=>ncSet('i');
+async function addCat(){
+  const name=$('ncn').value.replace(/\s+/g,' ').trim();
+  if(!name){$('ncn').focus();return}
+  if(name.length>24){flash('שם קצר יותר, עד 24 תווים');return}
+  if(CATS.includes(name)||ICATS.includes(name)){flash('כבר יש קטגוריה בשם הזה');return}
+  const n={e:customCats.e.slice(),i:customCats.i.slice()};n[nctype].push(name);
+  if(await saveSettings({custom_cats:n},`הקטגוריה "${name}" נוספה`)){setCustom(n);$('ncn').value='';renderSettings();render()}
+}
+$('ncadd').onclick=addCat;
+$('ncn').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addCat()}});
+$('nclist').addEventListener('click',async e=>{
+  const b=e.target.closest('.lb');if(!b) return;
+  const t=b.dataset.t,c=b.dataset.c;
+  /* קטגוריה שיש בה תנועות או הוראות קבע לא נמחקת, כדי שלא ייעלמו מהחלוקה ומהדוחות */
+  const q=await sb.from('tx').select('id',{count:'exact',head:true}).eq('c',c).eq('type',t);
+  if(q.error){flash('לא ניתן לבדוק. בדקו חיבור לאינטרנט');return}
+  if((q.count||0)>0||recs.some(r=>r.c===c&&r.type===t)){flash(`יש תנועות בקטגוריה "${c}", ולכן אי אפשר למחוק אותה`);return}
+  const n={e:customCats.e.filter(x=>!(t==='e'&&x===c)),i:customCats.i.filter(x=>!(t==='i'&&x===c))};
+  if(await saveSettings({custom_cats:n},`הקטגוריה "${c}" נמחקה`)){setCustom(n);renderSettings();render()}
+});
+buildCats();
+function renderSettings(){
+  const cl=[...customCats.e.map(c=>['e',c]),...customCats.i.map(c=>['i',c])];
+  $('nclist').innerHTML=cl.length?cl.map(([t,c])=>`<div class="li"><div><b>${esc(c)}</b><br><small>${t==='i'?'הכנסה':'הוצאה'}</small></div><button class="lb" data-t="${t}" data-c="${esc(c)}">מחיקה</button></div>`).join(''):'<p class="hint" style="margin:0">עדיין לא נוספו קטגוריות.</p>';
+  $('ctset').querySelectorAll('input').forEach(i=>{if(document.activeElement!==i)i.value=catT[i.dataset.c]||''});
+  $('rlist').innerHTML=recs.length?recs.map(r=>`<div class="li"><div><b>${esc(r.c)}</b> ${money(r.a)}<br><small>${r.type==='i'?'הכנסה':'הוצאה'}, יום ${r.day}, ${r.auto?'נוספת אוטומטית':'תזכורת'}${r.active?'':', מושהית'}</small></div><div class="acts2"><button class="lb" data-act="tog" data-id="${esc(r.id)}">${r.active?'השהיה':'הפעלה'}</button><button class="lb" data-act="rdel" data-id="${esc(r.id)}">מחיקה</button></div></div>`).join(''):'<p class="empty">עוד אין הוראות קבע.</p>';
+  const ks=Object.keys(rules).sort();
+  $('mrlist').innerHTML=ks.length?ks.map(k=>`<div class="li"><div><b>${esc(k)}</b><br><small>${esc(rules[k])}</small></div><button class="lb" data-m="${esc(k)}">מחיקה</button></div>`).join(''):'<p class="empty">עוד לא נלמדו בתי עסק.</p>';
+}
+
+const BGS=[['','ברירת מחדל'],['#ffffff','לבן'],['#dbeafe','תכלת'],['#d1fae5','מנטה'],['#fef3c7','חול'],['#fce7f3','ורוד'],['#e9e1fb','סגול בהיר'],['#0e1626','כחול כהה'],['#111111','שחור']];
+function applyBg(h){
+  const r=document.documentElement.style;
+  ['--bg','--card','--ink','--muted','--line','--chip','--accent','--accent-ink','color-scheme'].forEach(k=>r.removeProperty(k));
+  if(h){
+    const n=parseInt(h.slice(1),16),dark=(0.299*(n>>16)+0.587*(n>>8&255)+0.114*(n&255))<140;
+    const mix=(c,p)=>`color-mix(in srgb, var(--bg) ${100-p}%, ${c} ${p}%)`;
+    r.setProperty('--bg',h);
+    r.setProperty('--card',dark?mix('#fff',8):mix('#fff',60));
+    r.setProperty('--chip',dark?mix('#fff',12):mix('#000',5));
+    r.setProperty('--line',dark?mix('#fff',16):mix('#000',12));
+    r.setProperty('--ink',dark?'#eaf0fb':'#14213d');
+    r.setProperty('--muted',dark?'#9aa8c0':'#566175');
+    r.setProperty('--accent',dark?'#2dd4bf':'#0f766e');
+    r.setProperty('--accent-ink',dark?'#06201d':'#ffffff');
+    r.setProperty('color-scheme',dark?'dark':'light');
+  }
+  lset('budget-bg',h||'');
+  document.querySelectorAll('#sw button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.c===(h||'')));
+}
+$('sw').innerHTML=BGS.map(([c,n])=>`<button type="button" data-c="${c}" aria-label="${n}" title="${n}" style="background:${c||'linear-gradient(135deg,#eef1f6 50%,#0e1626 50%)'}"></button>`).join('')+'<input type="color" id="cc" aria-label="צבע מותאם אישית" value="#dbeafe">';
+$('sw').addEventListener('click',e=>{const b=e.target.closest('button');if(b)applyBg(b.dataset.c)});
+$('cc').addEventListener('input',e=>applyBg(e.target.value));
+
+/* ---------- Excel export ---------- */
+$('xm').value=keyOf(T0.getFullYear(),T0.getMonth());
+$('xl').onclick=async()=>{
+  if(!window.XLSX){flash('ספריית האקסל לא נטענה. נסו לרענן את הדף');return}
+  const [y,mo]=$('xm').value.split('-').map(Number);
+  if(!y){flash('בחרו חודש');return}
+  const s=new Date(y,mo-1,1).getTime(),e=new Date(y,mo,1).getTime();
+  try{
+    const q=await sb.from('tx').select('*').gte('t',s).lt('t',e); if(q.error) throw q.error; let rows=q.data.map(fromRow);
+    rows=rows.filter(r=>r.t>=s&&r.t<e&&!r.del).sort((a,b)=>a.t-b.t);
+    const exps=rows.filter(r=>r.type!=='i'&&!isPpl(r)),inc=rows.filter(r=>r.type==='i'&&!isPpl(r)).reduce((t,r)=>t+r.a,0),exp=exps.reduce((t,r)=>t+r.a,0);
+    const cat=CATS.map(c=>[c,exps.filter(r=>r.c===c).reduce((t,r)=>t+r.a,0)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+    const sum=[['דוח חודשי',$('xm').value],[],['הכנסות',inc],['הוצאות',exp],['יתרה',inc-exp],['יעד הוצאות',target||''],['נשאר מהיעד (שלילי = חריגה)',target?target-exp:''],[],['קטגוריה','סכום','אחוז מההוצאות','יעד לקטגוריה'],...cat.map(([c,v])=>[c,v,{t:'n',v:v/exp,z:'0%'},catT[c]||'']),[],['הכנסות לפי מקור','סכום'],...ICATS.map(c=>[c,rows.filter(r=>r.type==='i'&&r.c===c).reduce((t,r)=>t+r.a,0)]).filter(x=>x[1]>0)];
+    const det=[['תאריך','שעה','סוג','קטגוריה','סכום','נרשם על ידי','הערה','קבלה מצורפת'],...rows.map(r=>{const d=new Date(r.t);return[d.toLocaleDateString('en-GB'),d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),r.type==='i'?'הכנסה':'הוצאה',r.c,r.a,r.by||'',r.note||'',r.receipt?'כן':'']})];
+    const w1=XLSX.utils.aoa_to_sheet(sum),w2=XLSX.utils.aoa_to_sheet(det);
+    w1['!cols']=[{wch:28},{wch:14},{wch:16},{wch:14}]; w2['!cols']=[{wch:12},{wch:8},{wch:10},{wch:20},{wch:12},{wch:14},{wch:22},{wch:12}];
+    const wb=XLSX.utils.book_new(); wb.Workbook={Views:[{RTL:true}]};
+    XLSX.utils.book_append_sheet(wb,w1,'סיכום'); XLSX.utils.book_append_sheet(wb,w2,'תנועות');
+    const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    const url=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));const lnk=document.createElement('a');lnk.href=url;lnk.download=`budget-${$('xm').value}.xlsx`;document.body.appendChild(lnk);lnk.click();lnk.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
+  }catch(err){flash('לא הצלחנו להפיק את הקובץ')}
+};
+
+/* ---------- מחשבון הנחה ---------- */
+const DISC=[18,20,25,30];
+let dsP=null;
+$('dspc').innerHTML=DISC.map(p=>`<button type="button" data-p="${p}" aria-pressed="false">${p}%</button>`).join('');
+function renderDisc(){
+  const a=parseFloat($('dsamt').value)||0,box=$('dsres');
+  document.querySelectorAll('#dspc button').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.p===dsP));
+  if(!(a>0)||dsP==null){box.innerHTML=`<p class="hint" style="margin:0">${a>0?'בחרו אחוז הנחה':'הקלידו מחיר ובחרו אחוז הנחה'}</p>`;return}
+  const c=Math.round(a*100),sv=Math.round(c*dsP/100),af=c-sv;
+  box.innerHTML=`<small>מחיר אחרי הנחה של ${dsP}%</small><div class="big">${money2(af/100)}</div><div class="two"><div><small>מחיר לפני הנחה</small><b>${money2(c/100)}</b></div><div><small>חסכון</small><b class="sv">${money2(sv/100)}</b></div></div>`;
+}
+$('dsamt').addEventListener('input',()=>{clean($('dsamt'));renderDisc()});
+$('dspc').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;dsP=+b.dataset.p;renderDisc()});
+renderDisc();
+
+/* ---------- קבלות: צילום, קריאה בתוך המכשיר (Tesseract) וזיהוי קטגוריה ---------- */
+/* מילות מפתח לפי קטגוריה. '=' בתחילת מילה: התאמה למילה שלמה בלבד (למילים קצרות). הארוכה ביותר שמתאימה גוברת */
+const RC_RULES=[
+ ['מזון',['שופרסל','shufersal','רמי לוי','רמילוי','ramilevy','ויקטורי','victory','יוחננוף','yochananof','טיב טעם','tivtaam','אושר עד','osherad','מחסני השוק','חצי חינם','יינות ביתן','ביתן','קשת טעמים','פרש מרקט','freshmarket','סופר יודה','סטופ מרקט','stopmarket','קרפור','carrefour','=מגה','=mega','=אמפם','ampm','נתיב החסד','שוק העיר','זול ובגדול','פוליצר','=מכולת','מינימרקט','=מרקט','supermarket','מאפיית','bakery']],
+ ['דלק',['=פז','=paz','סונול','sonol','דור אלון','doralon','=דלק','=delek','תדלוק','בנזין','=סולר','אוקטן','octane','=טן','=ten','=yellow','=ילו']],
+ ['מסעדות ובילויים',['מסעדה','מסעדת','restaurant','בורגר','burger','מקדונלד','mcdonald','ארומה','aroma','=קפה','=cafe','=coffee','קופיקס','cofix','לנדוור','landwer','=גרג','פיצה','pizza','דומינו','domino','=פאב','=pub','שווארמה','פלאפל','סושי','sushi','גלידה','=גולדה','וולט','=wolt','תן ביס','10bis','סינמה','cinema','יס פלאנט','הוט סינמה','קולנוע','תיאטרון','הצגה','בר מזל']],
+ ['ביגוד',['קסטרו','castro','=זארה','=zara','h&m','=פוקס','=fox','=גולף','=golf','רנואר','renuar','הוניגמן','honigman','טרמינל איקס','terminalx','=שילב','shilav','אדידס','adidas','נייקי','=nike','=מנגו','=mango','bershka','pull&bear','stradivarius','americaneagle','אמריקן איגל','גולברי','golbary','ביגוד','הלבשה','נעליים']],
+ ['תחזוקת בית',['איקאה','ikea','=אייס','=ace','הום סנטר','homecenter','טמבור','tambour','נגרייה','חומרי בניין','אינסטלציה','שרברב','חשמלאי','מנעולן','שיפוצים']],
+ ['חשמל',['חברת החשמל','iec','electriccorp']],
+ ['גז',['סופרגז','supergas','אמישראגז','amisragas','פזגז','pazgas','גז ביתי']],
+ ['מים',['תאגיד המים','תאגיד מים','מקורות','מי אביבים','מי רעננה','מי הרצליה','מי שבע']],
+ ['אינטרנט ביתי',['בזק','bezeq','=הוט','=hot','סלקום','cellcom','נטוויז','netvision','אינטרנט']],
+ ['ועד בית',['ועד בית','ועד הבית']],
+ ['ארנונה',['ארנונה']],
+ ['שכר דירה',['שכר דירה','שכירות']]
+];
+const BIDI=/[‎‏‪-‮⁦-⁩]/g;
+const squash=s=>String(s||'').toLowerCase().replace(BIDI,'').replace(/[\s'"`´׳״’”“.,\-_|:;()*]/g,'');
+const tokensOf=s=>String(s||'').toLowerCase().replace(BIDI,'').split(/[^0-9a-zא-ת]+/).filter(Boolean);
+/* מציע קטגוריה: קודם בתי עסק שנלמדו, אחר כך המילון */
+function catGuess(text){
+  const sq=squash(text),tk=new Set(tokensOf(text));
+  let best=null;
+  Object.keys(rules).forEach(k=>{
+    const q=squash(k);
+    if(q.length>=3&&CATS.includes(rules[k])&&sq.includes(q)&&(!best||q.length>best.len)) best={c:rules[k],len:q.length,src:'learned',hit:k};
+  });
+  if(best) return best;
+  RC_RULES.forEach(([c,kws])=>kws.forEach(kw=>{
+    const only=kw[0]==='=',w=only?kw.slice(1):kw,q=squash(w);
+    const ok=only||q.length<4?tk.has(w.toLowerCase()):sq.includes(q);
+    if(ok&&(!best||q.length>best.len)) best={c,len:q.length,src:'dict',hit:w};
+  }));
+  return best;
+}
+/* קורא את הטקסט שהזיהוי החזיר: סכום (עם חלופות), תאריך, בית עסק וקטגוריה מוצעת */
+function parseReceipt(raw){
+  const text=normOcr(raw);
+  const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const TOTAL=TOTALWORD;
+  const STRONG=new RegExp(PAYWORD.source+'|לתשלום|total|amount\\s*due|to\\s*pay|balance\\s*due','i');
+  const PAY=/אשראי|ויזה|visa|מאסטר|master|כרטיס|דביט|אמצעי\s*תשלום|credit|card|שולם/i;
+  const VAT=/מע\W{0,2}מ|vat|tax/i;
+  const SKIP=/עודף|change|מזומן|cash|טיפ|\btip\b|הנחה|discount|מחיר\s*ל|ליטר|כמות|יח\W|unit|qty|פקס|טל[:.\s]|\btel\b|אסמכתא|הקצאה|מספר/i;
+  const AMT=/(^|[^\d.,])(\d{1,3}(?:,\d{3})+|\d{1,6})[.,](\d{2})(?!\d)/g;
+  const amountsIn=ln=>{const out=[];let m;AMT.lastIndex=0;while((m=AMT.exec(ln))){const v=parseFloat(m[2].replace(/,/g,'')+'.'+m[3]);if(v>0&&v<100000)out.push(v)}return out};
+  const hasLetters=s=>/[A-Za-zא-ת]/.test(s);
+  const found=[];
+  lines.forEach((ln,i)=>{
+    let vals=amountsIn(ln);
+    /* סריקה "מפוזרת": התווית בשורה אחת והסכום בשורה שאחריה */
+    if(!vals.length&&(TOTAL.test(ln)||PAY.test(ln))){
+      for(let j=i+1;j<=i+3&&j<lines.length;j++){if(!hasLetters(lines[j])){const v=amountsIn(lines[j]);if(v.length){vals=v;break}}}
+    }
+    const skip=(SKIP.test(ln)&&!TOTAL.test(ln))||(VAT.test(ln)&&!/כולל|incl/i.test(ln));
+    vals.forEach(v=>found.push({v,ln,skip}));
+  });
+  const by=new Map();
+  found.forEach(f=>{
+    if(f.skip) return;
+    const k=f.v.toFixed(2),o=by.get(k)||{v:f.v,s:0,tot:false};
+    o.s+=0.5;
+    if(TOTAL.test(f.ln)){o.s+=STRONG.test(f.ln)?4:3;o.tot=true}
+    if(PAY.test(f.ln)) o.s+=2;
+    by.set(k,o);
+  });
+  const cands=[...by.values()].sort((a,b)=>b.s-a.s||b.v-a.v);
+  const best=cands[0]||null;
+  const conf=!best?'none':(best.tot&&best.s>=4.5)?'high':(best.tot||best.s>=2.5)?'mid':'low';
+  const alts=cands.slice(1).filter(c=>c.s>=2).slice(0,3).map(c=>c.v);
+  /* תאריך: יום/חודש/שנה כמקובל בישראל, או שנה-חודש-יום */
+  const now=new Date(),lo=new Date(now.getFullYear()-3,now.getMonth(),now.getDate()).getTime(),hi=now.getTime()+864e5;
+  const okDate=(y,m,d)=>{const t=new Date(y,m-1,d);return t.getFullYear()===y&&t.getMonth()===m-1&&t.getDate()===d&&t.getTime()>=lo&&t.getTime()<=hi?{y,m,d}:null};
+  let date=null,m;
+  const dr=/(^|[^\d])(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4}|\d{2})(?!\d)/g,ir=/(^|[^\d])(20\d{2})[\/.\-](\d{1,2})[\/.\-](\d{1,2})(?!\d)/g;
+  while(!date&&(m=dr.exec(text))){const y=+m[4]<100?2000+ +m[4]:+m[4];date=okDate(y,+m[3],+m[2])}
+  while(!date&&(m=ir.exec(text))){date=okDate(+m[2],+m[3],+m[4])}
+  /* בית עסק: השורה המשמעותית הראשונה בראש הקבלה */
+  const NOTNAME=/חשבונית|קבלה|invoice|receipt|ח\W?פ|ע\W?מ|טל[:.\s]|טלפון|tel[:.]|פקס|תאריך|date/i;
+  let merchant='';
+  for(let i=0;i<Math.min(7,lines.length)&&!merchant;i++){
+    const c=lines[i].replace(/[|:;_~=*#<>\[\]{}]+/g,' ').replace(/\s+/g,' ').trim();
+    if(((c.match(/[A-Za-zא-ת]/g)||[]).length>=3)&&!NOTNAME.test(c)) merchant=c.slice(0,40);
+  }
+  /* רשת מוכרת: בראש הקבלה (גם אם נקראה עם טעות קטנה), ואם לא נמצאה שם, בכל הקבלה (רק התאמה מדויקת).
+     כשהשורה הראשונה לא מכילה את שם הרשת כמו שהוא, שם הרשת מחליף אותה */
+  const head=storeIn(lines.slice(0,12).join('\n')),any=head||storeIn(text),chain=head||(any&&any.exact?any:null);
+  if(chain){const m=storeIn(merchant);if(!(m&&m.exact&&m.n===chain.n)) merchant=chain.n}
+  const guess=catGuess(text)||(chain?catGuess(chain.n):null);
+  if(!merchant&&guess) merchant=guess.hit;
+  return {best:best?best.v:null,alts,conf,date,merchant,guess};
+}
+
+/* ---------- פירוט פריטים: פענוח שורות, שמות להשוואה, רשתות והשוואת מחירים ---------- */
+const STORES=[
+ ['שופרסל',['שופרסל','shufersal']],['רמי לוי',['רמי לוי','רמילוי','ramilevy']],['ויקטורי',['ויקטורי','victory']],
+ ['יוחננוף',['יוחננוף','yochananof']],['טיב טעם',['טיב טעם','tivtaam']],['אושר עד',['אושר עד','osherad']],
+ ['חצי חינם',['חצי חינם']],['יינות ביתן',['יינות ביתן','ביתן']],['מגה',['=מגה','=mega']],['קרפור',['קרפור','carrefour']],
+ ['קשת טעמים',['קשת טעמים']],['פרש מרקט',['פרש מרקט','freshmarket']],['סטופ מרקט',['סטופ מרקט','stopmarket']],
+ ['סופר יודה',['סופר יודה']],['שוק העיר',['שוק העיר']],['זול ובגדול',['זול ובגדול']],['נתיב החסד',['נתיב החסד']],
+ ['מחסני השוק',['מחסני השוק']],['AM:PM',['ampm','=אמפם']]
+];
+/* רשת מוכרת בתוך טקסט שנקרא מקבלה. סובל טעויות קריאה נפוצות: י' שנקראה כגרש, ובשם ארוך גם אות אחת שגויה או חסרה */
+function storeIn(text){
+  const raw=String(text||''),v1=squash(raw),v2=squash(raw.replace(/([א-ת])['׳’‘´`]/g,'$1י')),tk=new Set(tokensOf(raw));
+  let best=null;
+  STORES.forEach(([n,kws])=>kws.forEach(kw=>{
+    const only=kw[0]==='=',w=only?kw.slice(1):kw,q=squash(w);
+    const exact=only||q.length<4?tk.has(w.toLowerCase()):v1.includes(q);
+    let ok=exact||(!only&&q.length>=4&&v2.includes(q));
+    if(!ok&&!only&&q.length>=6){
+      for(const v of [v1,v2]){
+        for(let i=0;i+q.length<=v.length&&!ok;i++){let d=0;for(let j=0;j<q.length&&d<2;j++)if(v.charCodeAt(i+j)!==q.charCodeAt(j))d++;if(d<2)ok=true}
+        for(let j=1;j<q.length-1&&!ok;j++)if(v.includes(q.slice(0,j)+q.slice(j+1)))ok=true;
+        if(ok) break;
+      }
+    }
+    if(ok&&(!best||(exact&&!best.exact)||(exact===best.exact&&q.length>best.len))) best={n,len:q.length,exact};
+  }));
+  return best;
+}
+/* שם הרשת כפי שיוצג וישמש להשוואה: מהמילון, ואם אין, שתי המילים הראשונות של שם בית העסק */
+function storeOf(merchant){
+  const t=String(merchant||''),b=storeIn(t);
+  if(b) return b.n;
+  const ws=tokensOf(t).filter(w=>/[a-zא-ת]/.test(w)&&w.length>1).slice(0,2);
+  return ws.join(' ').slice(0,24);
+}
+
+/* --- שם מוצר להשוואה: מילים, גדלים (גרם/מ"ל), אחוזים --- */
+const FINALS={'ך':'כ','ם':'מ','ן':'נ','ף':'פ','ץ':'צ'};
+const NAME_STOP=new Set(['של','עם','יח','יחידה','יחידות','מארז','אריזה','חדש','מבצע']);
+function nameInfo(name){
+  let s=String(name||'').toLowerCase().replace(BIDI,'').replace(/[״”“"׳’‘´`']/g,'').replace(/[ךםןףץ]/g,c=>FINALS[c]);
+  s=s.replace(/(\d),(\d)/g,'$1.$2');
+  const sizes=[],pct=[];
+  s=s.replace(/(\d+(?:\.\d+)?)\s*%/g,(m,n)=>{pct.push(String(+n));return' '});
+  s=s.replace(/(\d+(?:\.\d+)?)\s*(קילוגרמ|קילו|קג|ליטרימ|ליטר|מיליליטר|מל|גרמ|גר|ג|ל|kg|g|ml|l)(?![א-תa-z])/g,(m,n,u)=>{
+    const v=parseFloat(n);let g;
+    if(/^(קילוגרמ|קילו|קג|kg)$/.test(u)) g=[v*1000,'ג'];
+    else if(/^(ליטרימ|ליטר|ל|l)$/.test(u)) g=[v*1000,'מל'];
+    else if(/^(מיליליטר|מל|ml)$/.test(u)) g=[v,'מל'];
+    else g=[v,'ג'];
+    sizes.push(Math.round(g[0])+g[1]);return' ';
+  });
+  const toks=s.split(/[^0-9a-zא-ת]+/).filter(Boolean);
+  const words=[];
+  toks.forEach(t=>{
+    if(/^\d+$/.test(t)){if(t.length<=3) words.push(t);return}
+    if(t.length<2||NAME_STOP.has(t)) return;
+    if(/^[a-z]{2,3}$/.test(t)&&/[א-ת]/.test(s)) return; /* שאריות קריאה כמו nv או sown בתוך שם בעברית */
+    words.push(t);
+  });
+  return {words,sizes:sizes.sort(),pct:pct.sort()};
+}
+const nameKey=n=>{const i=nameInfo(n);return (i.words.slice().sort().join(' ')+(i.sizes.length?'|'+i.sizes.join(','):'')+(i.pct.length?'|'+i.pct.join(',')+'%':'')).slice(0,160)};
+const bgCache=new Map();
+const bigrams=w=>{let s=bgCache.get(w);if(s)return s;s=new Set();for(let i=0;i<w.length-1;i++)s.add(w.slice(i,i+2));if(bgCache.size>5000)bgCache.clear();bgCache.set(w,s);return s};
+function wordSim(x,y){
+  if(x===y) return 1;
+  if(x.length<4||y.length<4||Math.abs(x.length-y.length)>2||x.charCodeAt(0)<58||y.charCodeAt(0)<58) return 0; /* קצרות מדי, שונות באורך, או מספרים */
+  const A=bigrams(x),B=bigrams(y);let c=0;A.forEach(g=>{if(B.has(g))c++});
+  return 2*c/(A.size+B.size)>=0.8?0.9:0;
+}
+const SIM_MIN=0.66;
+function nameSim(a,b){
+  if(a.sizes.length&&b.sizes.length&&a.sizes.join()!==b.sizes.join()) return 0;
+  if(a.pct.length&&b.pct.length&&a.pct.join()!==b.pct.join()) return 0;
+  const wa=a.words,wb=b.words; if(!wa.length||!wb.length) return 0;
+  const used=new Set();let m=0,full=0;
+  wa.forEach(x=>{let best=0,bj=-1;wb.forEach((y,j)=>{if(used.has(j))return;const s=wordSim(x,y);if(s>best){best=s;bj=j}});if(bj>=0){used.add(bj);m+=best;full++}});
+  const mn=Math.min(wa.length,wb.length);
+  let sc=m/Math.max(wa.length,wb.length);
+  /* שם קצר שכולו מוכל בשם ארוך (למשל "חלב 3%" מול "חלב תנובה 3%") */
+  if(full===mn&&((mn>=2)||(a.pct.length&&a.pct.join()===b.pct.join())||(a.sizes.length&&a.sizes.join()===b.sizes.join()))) sc=Math.max(sc,0.7);
+  return sc;
+}
+
+/* --- ניקוי משותף לטקסט שהקריאה החזירה --- */
+function normOcr(raw){
+  let t=String(raw||'').replace(BIDI,'').replace(/[״”“]/g,'"').replace(/[׳’‘´`]/g,"'")
+    .replace(/(\d)\s+([.,])\s*(\d{2})(?!\d)/g,'$1$2$3').replace(/(\d)\s*([.,])\s+(\d{2})(?!\d)/g,'$1$2$3');
+  /* גרש בתחילת מילה הוא י' שנקראה לא נכון ("'חידה") */
+  t=t.replace(/(^|[\s(])['׳](?=[א-ת]{2})/gm,'$1י');
+  /* אותיות מרווחות ("ל ת ש ל ו ם") הופכות למילה אחת */
+  t=t.replace(/(^|[\s:|])((?:[א-ת] ){2,}[א-ת])(?=$|[\s:|.])/gm,(m,a,w)=>a+w.replace(/ /g,''));
+  return t;
+}
+/* "לתשלום" גם כשהקריאה הוסיפה רווחים או אות אחת מיותרת */
+const PAYWORD=/ל\s*ת\s*ש\s*ל\s*(?:ו\s*)?(?:ר\s*)?ם/;
+/* מילים שמסמנות שורת סיכום */
+const TOTALWORD=new RegExp(PAYWORD.source+'|לתשלום|סה\\W{0,2}כ|סך\\s*הכל|סכום|total|amount\\s*due|to\\s*pay|balance\\s*due|grand','i');
+
+/* --- פענוח שורות פריטים מהטקסט שהקריאה החזירה ---
+   תומך בכמה מבנים: "שם מחיר", "שם ברקוד מחיר" (רמי לוי), שורת כמות "2 × 5.90" או "x 9.90 2 יחידה 19.80",
+   מוצרים במשקל, שורות הנחה (מינוס בסוף השורה) ושם שמופיע בשורה נפרדת מהמחיר */
+function parseItems(raw,total){
+  const lines=normOcr(raw).split(/\r?\n/).map(l=>l.replace(/\s+/g,' ').trim()).filter(Boolean);
+  const HARD_END=/סה\W{0,2}[כך]|סך\s*הכל|total|subtotal|סוף\s*הז|(^|\s)סוף(\s|$)/i;
+  const STOP=/סיכום|שולם|אשראי|ויזה|visa|מאסטר|master|isracard|ישראכרט|כרטיס|מזומן|עודף|מע\W{0,2}מ|\bvat\b|\btax\b|טיפ|\btip\b|אסמכתא|הקצאה|חשבונית|קבלה|invoice|receipt|תאריך|שעה|קופה|קופאי|סניף|כתובת|טל[:.\s]|טלפון|\btel\b|פקס|ח\W?פ\b|ע\W?מ\b|תודה|להתראות|כמות\s|מחיר\s*ל|משאבה|בליטרים|מקור/i;
+  const DISC=/הנח|מבצע|קופון|discount|promo|זיכוי/i;
+  const GENERAL=/מועדון|כללי|סה\W{0,2}כ|חבר|זיכוי|אריזה/i;
+  const UNITW="יחידות|יחידה|יח'?|ק\"?ג|קג|kg|גרם|גר'?";
+  const letters=s=>(String(s).match(/[A-Za-zא-ת]/g)||[]).length;
+  const hebs=s=>(String(s).match(/[א-ת]/g)||[]).length;
+  const hasAmt=s=>/\d[.,]\d{2}(?!\d)/.test(s);
+  /* המחיר בסוף השורה. הקריאה מוסיפה לפעמים "זבל" קצר אחרי המחיר (קצה הנייר, רקע), ולכן מדלגים על עד שתי מילים קצרות */
+  const endPrice=ln=>{
+    const toks=ln.split(' ');let junk=0;
+    while(toks.length>1&&junk<2){
+      const t=toks[toks.length-1];
+      if(/^[\\|\/:;.,'"!?*_~<>()\[\]{}\-]*$/.test(t)||(t.length<=3&&!/^-?\d{1,4}[.,]\d{2}-?$/.test(t)&&!/^[xX×*]$/.test(t))){toks.pop();junk++}else break;
+    }
+    const m=/(^|[^\d.,])(-?)(\d{1,4})[.,](\d{2})(-?)\s*(?:₪|ש"ח|שח|nis)?\s*$/i.exec(toks.join(' '));
+    if(!m) return null;
+    return {v:parseFloat(m[3]+'.'+m[4])*((m[2]||m[5])?-1:1),rest:toks.join(' ').slice(0,m.index+m[1].length).trim()};
+  };
+  const startPrice=ln=>{
+    const m=/^\s*(-?)(\d{1,4})[.,](\d{2})(-?)\s*(?:₪)?\s+(\S.*)$/.exec(ln);
+    return m?{v:parseFloat(m[2]+'.'+m[3])*((m[1]||m[4])?-1:1),rest:m[5].trim()}:null;
+  };
+  /* שם נקי: בלי ברקוד, ובלי "זבל" בתחילת השם או בסופו (אותיות לטיניות קצרות כמו RAE, סימנים, ספרה בודדת) */
+  const cleanName=s=>{
+    const bm=/\b\d{7,}\b/.exec(s);
+    if(bm&&hebs(s.slice(0,bm.index))>=2) s=s.slice(0,bm.index); /* כל מה שאחרי הברקוד הוא רעש: המחיר כבר נחתך */
+    let t=s.replace(/\b\d{5,}\b/g,' ').replace(/[|:;_~=*#<>\[\]{}\\?]+/g,' ').replace(/\s+/g,' ').trim();
+    if(hebs(t)>=2){
+      let a=t.split(' ');
+      const hw=a.filter(w=>/[א-ת]{2,}/.test(w)).length;
+      while(a.length>1&&(/^[A-Za-z]{1,3}$/.test(a[0])||(hw>=3&&/^[A-Z]{4,5}$/.test(a[0]))||/^[א-ת]$/.test(a[0])||/^[\d₪$€%+]$/.test(a[0])||/^[^\wא-ת]+$/.test(a[0])))a.shift();
+      while(a.length>2&&/^\d{4,}$/.test(a[0])&&/[א-ת]{2,}/.test(a[1]))a.shift(); /* קוד מוצר לפני השם */
+      while(a.length>2&&/^[א-ת]$/.test(a[a.length-1])&&hebs(a.slice(0,-1).join(''))>=4)a.pop();
+      while(a.length>1&&(/^[A-Za-z]{1,3}$/.test(a[a.length-1])||(hw>=1&&/^[A-Za-z]{4}$/.test(a[a.length-1]))||/^[^\wא-ת]+$/.test(a[a.length-1])))a.pop();
+      while(a.length>2&&/^\d$/.test(a[a.length-1])&&/^\d$/.test(a[a.length-2]))a.pop(); /* "2 0" בסוף שם: רעש */
+      t=a.join(' ');
+    }
+    return t.replace(/^[\s\-.,]+|[\s\-.,]+$/g,'').trim().slice(0,80);
+  };
+  /* שם בשורה נפרדת: בלי מחירים ובלי קודים בסוף (ברקוד או קוד שקילה) */
+  const cleanPending=s=>cleanName(s.replace(/-?\d{1,4}[.,]\d{2}-?/g,' ')).replace(/(\s\d{3,}(\s\S)?)+$/,'').trim();
+  /* שורת כמות או משקל: רק מספרים, מילת יחידה וסימן כפל (x, ×, או "א" שהקריאה טעתה בו) */
+  const qtyParse=rest=>{
+    const probe=rest.replace(new RegExp(UNITW,'gi'),' ').replace(/[A-Za-z]+/g,' ').replace(/(^|\s)[xX×*א](?=\s|$)/g,' ').replace(/[\d.,\s\-]/g,'');
+    if(/[א-ת]/.test(probe)) return null;
+    if(!/[xX×*]|(^|\s)א(\s|$)|יחיד|ק"?ג|קג|kg/i.test(rest)) return null;
+    const re=new RegExp("(\\d+(?:[.,]\\d+)?)(?:\\s*("+UNITW+"))?","gi"),nums=[];let m;
+    while((m=re.exec(rest))) nums.push({v:parseFloat(m[1].replace(',','.')),unit:!!m[2]});
+    return nums.length?nums:null;
+  };
+  /* שורת כמות או משקל בכל סדר של המספרים (הקריאה הופכת לפעמים את הסדר בשורה מעורבת): מחיר ליחידה × כמות = סכום */
+  const qtyLine=ln=>{
+    if(!/יחיד|יח'|ק"?ג|קג|\bkg\b/i.test(ln)) return null;
+    const probe=ln.replace(new RegExp(UNITW,'gi'),' ').replace(/[A-Za-z]+/g,' ').replace(/(^|[^א-ת])[א-ת]{1,2}(?![א-ת])/g,' ').replace(/[\d.,:\s\-xX×*|\\\/]/g,'');
+    if(/[א-ת]/.test(probe)) return null;
+    const toks=(ln.match(/\d+(?:[.,]\d+)?/g)||[]).filter(s=>s.length<=7);
+    if(toks.length<2||toks.length>4) return null;
+    const val=s=>parseFloat(s.replace(',','.'));
+    const isP=s=>/^\d{1,4}[.,]\d{2}$/.test(s),isW=s=>/^\d{1,2}[.,]\d{3}$/.test(s),isI=s=>/^\d{1,3}$/.test(s);
+    const near=(a,b)=>Math.abs(a-b)<=Math.max(0.025,0.006*Math.abs(b));
+    /* הפתרון המדויק: שלושה מספרים שמתחברים */
+    if(toks.length>=3){
+      let hit=null;
+      for(let u=0;u<toks.length;u++)for(let q=0;q<toks.length;q++)for(let t=0;t<toks.length;t++){
+        if(u===q||q===t||u===t||!isP(toks[u])||!isP(toks[t])) continue;
+        const U=val(toks[u]),Q=val(toks[q]),T=val(toks[t]);
+        if(U>0&&Q>0&&T>0&&near(U*Q,T)&&(!hit||T>hit.t)) hit={q:Q,t:T,u:U};
+      }
+      if(hit) return hit;
+    }
+    /* אחרת (ספרה אחת נקראה לא נכון, או שחסר מספר): מזהים לפי צורת המספר */
+    const ws=toks.filter(isW),ps=toks.filter(isP),is=toks.filter(isI);
+    const mu=new RegExp("(\\d{1,3})\\s*(?:"+UNITW+")","i").exec(ln); /* המספר שצמוד למילת היחידה הוא הכמות */
+    let Q=ws.length?val(ws[0]):mu&&is.indexOf(mu[1])>=0?val(mu[1]):is.length?val(is[0]):null;
+    if(Q==null||!(Q>0)) return null;
+    if(ps.length===0) return null;
+    let U=null,T;
+    if(ps.length===1) T=val(ps[0]);
+    else{
+      const a=val(ps[0]),b=val(ps[1]);
+      if(Math.abs(a*Q-b)<=Math.abs(b*Q-a)){U=a;T=b}else{U=b;T=a}
+      /* משקל שנקרא לא מדויק: הכמות האמיתית היא הסכום חלקי המחיר לק"ג */
+      if(ws.length&&U>0&&!near(U*Q,T)) Q=Math.round(T/U*1000)/1000;
+    }
+    return {q:Q,t:T,u:U};
+  };
+  const pickQty=nums=>{
+    const u=nums.find(n=>n.unit&&n.v>0);if(u) return u.v;
+    const ints=nums.filter(n=>Number.isInteger(n.v)&&n.v>=1&&n.v<=99);
+    if(ints.length) return ints[ints.length-1].v;
+    return nums.length===1&&nums[0].v>0?nums[0].v:1;
+  };
+  /* "זבל" קצר בתחילת השורה (WA, RAE, סימן בודד) לפני מחיר או הנחה */
+  const stripLead=ln=>{
+    const a=ln.split(' ');let k=0;
+    while(a.length>1&&k<2&&(/^[A-Za-z]{1,3}$/.test(a[0])||/^[^\wא-ת]$/.test(a[0])||/^[א-ת]$/.test(a[0]))){a.shift();k++}
+    return k?a.join(' '):ln;
+  };
+  /* שורת פריט עם ברקוד שבה המחיר לא בקצה (הקריאה מערבבת כיוונים): לוקחים את המחיר הקרוב ביותר לברקוד */
+  const anyPrice=ln=>{
+    const b=/\b\d{7,}\b/.exec(ln);if(!b) return null;
+    const re=/(?:^|[^\d.,])(\d{1,3})[.,](\d{2})(?!\d)/g;let m,best=null;
+    while((m=re.exec(ln))){
+      const at=m.index+m[0].length-m[1].length-3,d=Math.abs(at-b.index);
+      if(!best||d<best.d) best={d,at,len:m[1].length+3,v:parseFloat(m[1]+'.'+m[2])};
+    }
+    if(!best) return null;
+    return {v:best.v,rest:(ln.slice(0,best.at)+' '+ln.slice(best.at+best.len)).replace(/\s+/g,' ').trim()};
+  };
+  /* סוף הפריטים: שורת סיכום. "לתשלום" ללא סכום הוא כותרת עמודה, לא סיכום */
+  let end=lines.length;
+  for(let i=0;i<lines.length;i++){
+    const ln=lines[i];
+    if(HARD_END.test(ln)){end=i;break}
+    if(PAYWORD.test(ln)){
+      const nxt=lines[i+1]||'';
+      if(hasAmt(ln)||(hasAmt(nxt)&&!/[A-Za-zא-ת]/.test(nxt))){end=i;break}
+    }
+  }
+  const items=[];let pending=null,lastIdx=-9,count=null;
+  const r2=n=>Math.round(n*100)/100;
+  /* קבלה שבה לכל מוצר יש ברקוד (רמי לוי ודומיו). שם: שורה עם ברקוד היא תמיד מוצר, גם כשהמחיר שלה לא נקרא,
+     ושורה עם מחיר ובלי ברקוד מיד מתחת למוצר היא ההנחה שלו */
+  const CODE=/\b\d{12,14}\b/,codeLayout=lines.filter(l=>CODE.test(l)&&hebs(l)>=2).length>=5,DEPOSIT=/פי?קדון|deposit/i;
+  /* שם של מוצר שנשאר בלי מחיר: נכנס לטבלה עם מחיר ריק, כדי שיהיה ברור שצריך להשלים אותו */
+  const flush=()=>{if(pending&&pending.code&&codeLayout&&items.length<120){items.push({name:pending.name,qty:1,price:null,miss:true});lastIdx=pending.i}pending=null};
+  for(let i=0;i<lines.length;i++){
+    let ln=lines[i];
+    /* "סה"כ פריטים: 6" (גם כשהמילה "פריטים" נקראה עם טעות) */
+    const cm=/סה\W{0,2}[כך]\s*(?:[א-ת]+|items)?\W{0,3}(\d{1,3})\s*$/i.exec(ln);
+    if(cm&&count==null&&!PAYWORD.test(ln)&&!/\d[.,]\d/.test(ln)) count=+cm[1];
+    if(i>=end) continue;
+    /* שורת כמות או משקל: מצמידה כמות וסכום לשם שממתין, או מתקנת את הכמות של הפריט שמעליה */
+    const qs=qtyLine(ln);
+    if(qs&&qs.t>0&&qs.t<5000){
+      if(pending&&pending.name){items.push({name:pending.name,qty:qs.q,price:qs.t});lastIdx=i}
+      else{
+        const prev=items[items.length-1];
+        if(prev&&!prev.disc&&lastIdx===i-1){
+          if(Math.abs(prev.price+(prev.off||0)-qs.t)<=0.06){prev.qty=qs.q;lastIdx=i}
+          /* בשורת השם נקרא המחיר ליחידה, והסכום נמצא בשורת הכמות */
+          else if(!prev.off&&Math.abs(prev.price*qs.q-qs.t)<=Math.max(0.06,qs.t*0.006)){prev.price=qs.t;prev.qty=qs.q;lastIdx=i}
+        }
+      }
+      pending=null;continue;
+    }
+    if(qs) continue;
+    if(/\b\d{8,}\b/.test(ln)) ln=ln.replace(/(\d{1,3}):(\d{2})(?!\d)/g,'$1.$2'); /* "19:30" במקום "19.30" בשורת פריט */
+    const ln2=stripLead(ln);
+    const pr=endPrice(ln2)||startPrice(ln2)||anyPrice(ln);
+    if(!pr){
+      if(STOP.test(ln)){flush();continue}
+      if(qtyParse(ln)) continue;                           /* שורת כמות בלי סכום: מתעלמים, השם ממתין */
+      if(letters(ln)===0) continue;                        /* ברקוד או רעש: לא מבטל שם שממתין */
+      if(hebs(ln)>=2){flush();pending={name:cleanPending(ln),code:CODE.test(ln),i}} /* שם בלי מחיר: המחיר בשורה הבאה */
+      continue;
+    }
+    const v=pr.v,rest=pr.rest;
+    if(STOP.test(ln)&&!DISC.test(ln)&&v>0){flush();continue}
+    /* הנחה: מינוס בסוף או מילת הנחה. נצמדת לפריט שמעליה, אחרת נשארת שורה נפרדת */
+    if(v<0||DISC.test(ln)){
+      flush();
+      const amt=Math.abs(v),prev=items[items.length-1];
+      if(amt>0){
+        if(prev&&!prev.disc&&lastIdx===i-1&&!GENERAL.test(ln)&&amt<prev.price){prev.price=r2(prev.price-amt);prev.off=r2((prev.off||0)+amt)}
+        else{const nm=cleanName(rest.replace(/-?\d{1,4}[.,]\d{2}-?/g,' '));items.push({name:hebs(nm)>=2?nm:'הנחה',qty:1,price:-amt,disc:true});lastIdx=i}
+      }
+      pending=null;continue;
+    }
+    if(v<=0||v>=5000){flush();continue}
+    const ql=qtyParse(rest);
+    if(ql||letters(rest)===0){
+      const q=ql?pickQty(ql):1;
+      if(pending&&pending.name){items.push({name:pending.name,qty:q>0?q:1,price:v});lastIdx=i}
+      else{
+        const prev=items[items.length-1];
+        if(ql&&prev&&!prev.disc&&lastIdx===i-1&&(Math.abs(prev.price+(prev.off||0)-q*v)<=0.06||Math.abs(prev.price+(prev.off||0)-v)<0.01)) prev.qty=q;
+      }
+      pending=null;continue;
+    }
+    let name=cleanName(rest),qty=1;
+    /* כמות בתוך השם רק בקצה שלו ("לימונדה x2", "2x לימונדה"): באמצע השם זו כנראה טעות קריאה */
+    const q1=/\s[xX×*]\s?(\d{1,2})$/.exec(name)||/^(\d{1,2})\s?[xX×*]\s/.exec(name);
+    if(q1){qty=+q1[1];name=cleanName(name.replace(q1[0],' '))}
+    /* בקבלה עם ברקודים: שם מוצר שממתין למחיר, ומתחתיו שורה עם מחיר ובלי ברקוד. זו שורת הכמות והסכום שלו, גם אם מילת היחידה נקראה לא נכון */
+    if(pending&&pending.code&&codeLayout&&pending.i===i-1&&!CODE.test(ln)){
+      const nn=(rest.match(/(?:^|\s)(\d{1,2})(?=\s|$)/g)||[]).map(s=>+s.trim()).filter(n=>n>=1);
+      items.push({name:pending.name,qty:nn.length===1?nn[0]:1,price:v});lastIdx=i;pending=null;continue;
+    }
+    if(letters(name)<2){flush();continue}
+    flush();
+    /* בקבלה עם ברקודים: מחיר בלי ברקוד מיד מתחת למוצר הוא ההנחה שלו, גם כשסימן המינוס לא נקרא */
+    if(codeLayout&&!/\b\d{5,}\b/.test(ln)&&!DEPOSIT.test(ln)){
+      const prev=items[items.length-1];
+      if(prev&&!prev.disc&&prev.price>0&&lastIdx===i-1&&v<prev.price){prev.price=r2(prev.price-v);prev.off=r2((prev.off||0)+v);continue}
+    }
+    items.push({name,qty:qty>0?qty:1,price:v});lastIdx=i;
+    if(items.length>=120) break;
+  }
+  flush();
+  /* שורת הסכום הסופי שנקראה בטעות כפריט (כשהמילה "סה"כ" או "סוף הזמנה" לא נקראה): מוחקים אותה ואת מה שאחריה */
+  if(total>0){const j=items.findIndex((x,k)=>k>=1&&!x.disc&&x.price!=null&&Math.abs(x.price-total)<0.005);if(j>=1) items.length=j}
+  const sum=r2(items.reduce((s,x)=>s+(x.price||0),0));
+  return {items,sum,count};
+}
+
+/* --- השוואת מחירים בין קבלות --- */
+const CMP_DAYS=120;
+function clusterItems(rows){
+  const lim=Date.now()-CMP_DAYS*864e5;
+  const list=rows.filter(r=>r.store&&r.price>0&&r.qty>0&&r.name&&Number(r.t)>=lim)
+    .map(r=>({tx:r.tx_id,store:r.store,name:r.name,qty:Number(r.qty),price:Number(r.price),t:Number(r.t),u:Number(r.price)/Number(r.qty),info:nameInfo(r.name)}))
+    .filter(r=>r.info.words.length).sort((a,b)=>b.t-a.t);
+  const cl=[];
+  list.forEach(r=>{
+    let best=null,bs=0;
+    cl.forEach(c=>{const s=nameSim(c.info,r.info);if(s>bs){bs=s;best=c}});
+    if(best&&bs>=SIM_MIN) best.rows.push(r); else cl.push({info:r.info,name:r.name,rows:[r]});
+  });
+  return cl;
+}
+/* המחיר האחרון בכל רשת (בלי הקבלה הנוכחית), מהזול ליקר */
+function storePrices(cluster,excludeTx){
+  const by=new Map();
+  cluster.rows.forEach(r=>{if(r.tx!==excludeTx&&!by.has(r.store)) by.set(r.store,r)});
+  return [...by.values()].sort((a,b)=>a.u-b.u);
+}
+function findCluster(clusters,name){
+  const info=nameInfo(name);if(!info.words.length) return null;
+  let best=null,bs=0;
+  clusters.forEach(c=>{const s=nameSim(c.info,info);if(s>bs){bs=s;best=c}});
+  return best&&bs>=SIM_MIN?best:null;
+}
+/* משווה את פריטי הקבלה למחיר הזול ביותר שנרשם בעבר. מחזיר שורה לכל פריט וסיכום עודפים/חיסכון */
+function compareReceipt(items,store,clusters,excludeTx){
+  const rows=items.map(it=>{
+    if(it.disc||!(it.price>0)) return {skip:true};
+    const c=findCluster(clusters,it.name);
+    const sp=c?storePrices(c,excludeTx):[];
+    if(!sp.length) return {none:true};
+    const q=it.qty>0?it.qty:1,u=it.price/q,best=sp[0],diff=Math.round((u-best.u)*100)/100;
+    return {best,diff,q,u,sp};
+  });
+  let over=0,save=0,cmp=0;
+  rows.forEach(r=>{if(r.none||r.skip) return;cmp++;if(r.diff>0.004) over+=r.diff*r.q;else if(r.diff<-0.004) save+=-r.diff*r.q});
+  return {rows,over:Math.round(over*100)/100,save:Math.round(save*100)/100,cmp,total:rows.filter(r=>!r.skip).length};
+}
+/* תובנה לכל מוצר: באיזו רשת הזול ביותר, ומה ההפרש מול היקר ביותר */
+function priceTable(clusters){
+  const out=[];
+  clusters.forEach(c=>{
+    const sp=storePrices(c,null);
+    if(sp.length<2) return;
+    const lo=sp[0],hi=sp[sp.length-1];
+    out.push({name:c.rows[0].name,stores:sp,lo,hi,gap:hi.u-lo.u,pct:lo.u>0?(hi.u-lo.u)/hi.u:0});
+  });
+  return out.sort((a,b)=>b.gap*1-a.gap*1);
+}
+
+/* ---------- טבלת פריטים: בטופס הקבלה ובצופה, עם עודפים והפרשים ---------- */
+const r2=n=>Math.round(n*100)/100;
+const numOf=v=>{const x=parseFloat(String(v==null?'':v).replace(',','.').replace(/[^\d.\-]/g,''));return isFinite(x)?x:NaN};
+const shortDate=t=>new Date(t).toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit'});
+const bd=x=>`<bdi>${x}</bdi>`; /* מספרים וסכומים בתוך משפט בעברית, שלא יתהפכו */
+let itemsCache=null,itemsAt=0,itemsDirty=true,itemsP=null,priceCl=[];
+/* פריטי קבלות המזון (בלי הוצאות שנמחקו) מהחודשים האחרונים, ואיחוד שלהם למוצרים */
+function loadItems(force){
+  if(!sb||!authed) return Promise.resolve(false);
+  if(!force&&!itemsDirty&&itemsCache&&Date.now()-itemsAt<120000) return Promise.resolve(true);
+  if(itemsP) return itemsP;
+  itemsP=(async()=>{
+    try{
+      const since=Date.now()-CMP_DAYS*864e5,rows=[];
+      for(let p=0;p<5;p++){
+        const q=await sb.from('receipt_items').select('tx_id,store,name,qty,price,t').eq('cat','מזון').eq('del',false).gte('t',since).order('t',{ascending:false}).range(p*1000,p*1000+999);
+        if(q.error) return false;
+        rows.push(...q.data); if(q.data.length<1000) break;
+      }
+      itemsCache=rows;priceCl=clusterItems(rows);itemsDirty=false;itemsAt=Date.now();return true;
+    }catch(e){return false}
+    finally{itemsP=null}
+  })();
+  return itemsP;
+}
+async function saveItems(txId,list,meta){
+  if(!list.length) return true;
+  const rows=list.map((x,i)=>({tx_id:txId,store:meta.store||'',name:x.name.slice(0,120),key:nameKey(x.name),qty:Math.min(9999,Math.max(0.001,x.qty||1)),price:x.price,off:x.off>0&&!x.disc?Math.round(x.off*100)/100:0,t:meta.t,cat:meta.cat,by_name:meta.by||null,del:false,pos:i}));
+  const {error}=await sb.from('receipt_items').insert(rows);
+  itemsDirty=true;
+  return !error;
+}
+/* שורת ההשוואה מתחת לפריט */
+function cmpNote(c,store){
+  if(!c||c.skip||c.none) return '';
+  const b=c.best,per=c.q!==1?' ליח׳':'',same=b.store===store,d=bd(shortDate(b.t));
+  if(c.diff>0.004) return `<span class="up">יקר ב-${bd(money2(c.diff))}${per} ${same?`מהמחיר שנרשם כאן ב-${d}`:`מהמחיר ב${esc(b.store)}`} (${bd(money2(b.u))}${same?'':' · '+d})</span>`;
+  if(c.diff<-0.004) return `<span class="dn">הכי זול שנרשם: זול ב-${bd(money2(-c.diff))}${per} מ${same?`המחיר שנרשם כאן ב-${d}`:`המחיר ב${esc(b.store)}`} (${bd(money2(b.u))})</span>`;
+  return `<span class="dn">${same?'אותו מחיר כמו בפעם הקודמת':'אותו מחיר כמו הזול ביותר שנרשם, ב'+esc(b.store)}</span>`;
+}
+function ItemsBox(root,opt){
+  let rows=[];
+  root.innerHTML=`<table class="it" hidden><colgroup><col><col style="width:60px"><col style="width:76px"><col style="width:34px"></colgroup><thead><tr><th>פריט</th><th>כמות</th><th>מחיר</th><th></th></tr></thead><tbody></tbody></table><p class="hint ie" hidden></p><div class="iact"><button type="button" class="lb" data-act="add">הוספת שורה</button></div><div class="isum" aria-live="polite"></div>`;
+  const tb=root.querySelector('tbody'),tbl=root.querySelector('table'),emp=root.querySelector('.ie'),sum=root.querySelector('.isum');
+  const dirty=v=>{if(opt.onChange)opt.onChange(v)};
+  const model=x=>({name:String(x.name||''),qty:(x.qty>0&&x.qty!==1)?String(x.qty):'1',price:x.price==null||isNaN(x.price)?'':(+x.price).toFixed(2),disc:!!x.disc,off:Number(x.off)>0?Number(x.off):0});
+  function draw(){
+    tb.innerHTML=rows.map((r,i)=>`<tr class="r" data-i="${i}"><td><input data-f="name" dir="auto" value="${esc(r.name)}" autocomplete="off" aria-label="שם הפריט"></td><td><input data-f="qty" inputmode="decimal" value="${esc(r.qty)}" autocomplete="off" aria-label="כמות"></td><td><input data-f="price" inputmode="decimal" value="${esc(r.price)}" placeholder="?" autocomplete="off" aria-label="מחיר"></td><td><button type="button" class="lb x" aria-label="מחיקת השורה">×</button></td></tr><tr class="iu" data-i="${i}" hidden><td colspan="4"></td></tr><tr class="cm" data-i="${i}" hidden><td colspan="4"></td></tr>`).join('');
+    tbl.hidden=!rows.length;
+    emp.hidden=!!rows.length; emp.textContent=opt.emptyText||'לא נמצאו פריטים.';
+  }
+  const list=()=>rows.map(r=>{const q=numOf(r.qty);return {name:r.name.trim(),qty:q>0?q:1,price:numOf(r.price),disc:r.disc,off:r.off||0}});
+  /* מתחת לכל פריט: מחיר ליחידה (או לק"ג), ואם הייתה הנחה: המחיר לפני ההנחה, ההנחה ואחוז ההנחה */
+  const unitNote=x=>{
+    if(x.disc||!(x.price>0)) return '';
+    const kg=!Number.isInteger(x.qty),per=kg?'לק"ג':'ליחידה',parts=[];
+    if(x.qty!==1) parts.push(`<b>${bd(money2(x.price/x.qty))}</b> ${per}`);
+    if(x.off>0){
+      const full=x.price+x.off,pct=Math.round(x.off/full*100);
+      parts.push(`לפני הנחה ${bd(money2(full))}${x.qty!==1?` (${bd(money2(full/x.qty))} ${per})`:''}`);
+      parts.push(`<span class="dn">הנחה ${bd(money2(x.off))}${pct>0?` (${pct}%)`:''}</span>`);
+    }
+    return parts.map(p=>`<span class="nw">${p}</span>`).join(' · ');
+  };
+  function refresh(){
+    const ctx=opt.getCtx(),L=list(),store=ctx.store||'',food=ctx.cat==='מזון';
+    const cr=food&&priceCl.length?compareReceipt(L,store,priceCl,ctx.exclude||null):null;
+    rows.forEach((r,i)=>{
+      const tu=root.querySelector(`tr.iu[data-i="${i}"]`);
+      if(tu){const h=unitNote(L[i]);tu.firstChild.innerHTML=h;tu.hidden=!h}
+      const tr=root.querySelector(`tr.cm[data-i="${i}"]`); if(!tr) return;
+      const h=cr?cmpNote(cr.rows[i],store):''; tr.firstChild.innerHTML=h; tr.hidden=!h;
+    });
+    const valid=L.filter(x=>x.name&&x.price===x.price);
+    if(!valid.length){sum.innerHTML='';return}
+    const total=r2(valid.reduce((s,x)=>s+x.price,0));
+    let h=`<div class="srow"><span>סכום הפריטים</span><b>${money2(total)}</b></div>`;
+    /* סך ההנחות: הנחות שהוצמדו לפריטים, ושורות הנחה נפרדות */
+    const offs=r2(valid.reduce((s,x)=>s+(x.disc?(x.price<0?-x.price:0):(x.off||0)),0));
+    if(offs>0) h+=`<div class="srow"><span>לפני הנחות</span><b>${money2(r2(total+offs))}</b></div><div class="srow"><span>סך ההנחות בקבלה</span><b class="dn">${money2(offs)}</b></div>`;
+    if(ctx.total>0){
+      h+=`<div class="srow"><span>סכום הקבלה</span><b>${money2(ctx.total)}</b></div>`;
+      const d=r2(ctx.total-total);
+      h+=Math.abs(d)<0.01?'<p class="good">הפריטים מסתכמים בדיוק בסכום הקבלה.</p>'
+        :d>0?`<p class="warn">בקבלה יש ${money2(d)} יותר מסכום הפריטים. ייתכן שפריט לא נקלט או שמחיר נקרא עם טעות.</p>`
+        :`<p class="warn">סכום הפריטים גבוה ב-${money2(-d)} מסכום הקבלה. ייתכן ששורה נקראה פעמיים או שהנחה לא נקלטה.</p>`;
+    }
+    if(!food){h+='<p class="hint">השוואת מחירים בין רשתות נעשית רק בקבלות מזון.</p>';sum.innerHTML=h;return}
+    if(!cr||!cr.cmp){
+      h+=`<p class="hint">${priceCl.length?'לאף אחד מהפריטים עוד אין מחיר מרשת או מקבלה קודמת להשוואה.':'עוד אין מחירים להשוואה. אחרי שתצלמו קבלות מזון, כאן יופיעו העודפים וההפרשים, והמלצה באיזו רשת עדיף לקנות כל מוצר.'}</p>`;
+      sum.innerHTML=h;return;
+    }
+    const net=r2(cr.save-cr.over);
+    h+=`<div class="cmpbox"><b>עודפים והפרשים</b><small>מול המחיר הנמוך ביותר שנרשם לכל מוצר ב-${CMP_DAYS} הימים האחרונים</small>
+      <div class="srow"><span>עודף: שילמתם יותר מהמחיר הנמוך</span><b class="${cr.over>0?'up':''}">${money2(cr.over)}</b></div>
+      <div class="srow"><span>חיסכון: קניתם בזול יותר מבעבר</span><b class="${cr.save>0?'dn':''}">${money2(cr.save)}</b></div>
+      <div class="srow"><span>הפרש נטו</span><b class="${net>=0?'dn':'up'}">${net===0?money2(0):(net>0?'חסכתם ':'שילמתם יותר ')+money2(Math.abs(net))}</b></div>
+      <small>הושוו ${cr.cmp} מתוך ${cr.total} פריטים. לשאר עוד אין מחיר להשוואה.</small></div>`;
+    /* איפה עדיף לקנות */
+    const there=[],here=[];
+    cr.rows.forEach((c,i)=>{
+      if(c.skip||c.none) return;
+      const it=L[i];
+      if(c.diff>0.004&&c.best.store!==store) there.push({it,c,gain:c.diff*c.q});
+      else if(c.diff<=0.004&&c.sp.some(s=>s.store!==store)) here.push(it.name);
+    });
+    there.sort((a,b)=>b.gain-a.gain);
+    if(there.length||here.length){
+      h+='<div class="cmpbox"><b>איפה עדיף לקנות</b><ul>';
+      there.slice(0,6).forEach(x=>{h+=`<li><b>${esc(x.it.name)}</b>: זול יותר ב${esc(x.c.best.store)} (${bd(money2(x.c.best.u))} במקום ${bd(money2(x.c.u))})</li>`});
+      if(there.length>6) h+=`<li>ועוד ${there.length-6} מוצרים.</li>`;
+      if(here.length) h+=`<li>${store?'ב'+esc(store):'כאן'} הכי משתלם: ${here.slice(0,5).map(esc).join(', ')}${here.length>5?' ועוד':''}</li>`;
+      h+='</ul>';
+      if(there.length) h+=`<div class="srow" style="margin-top:6px"><span>אם הייתם קונים אותם ברשת הזולה</span><b class="dn">חיסכון ${money2(r2(there.reduce((s,x)=>s+x.gain,0)))}</b></div>`;
+      h+='</div>';
+    }
+    sum.innerHTML=h;
+  }
+  root.addEventListener('input',e=>{
+    const el=e.target,tr=el.closest('tr.r'); if(!tr||!el.dataset.f) return;
+    rows[+tr.dataset.i][el.dataset.f]=el.value; dirty(true); refresh();
+  });
+  root.addEventListener('click',e=>{
+    const x=e.target.closest('.x');
+    if(x){const i=+x.closest('tr.r').dataset.i;rows.splice(i,1);draw();refresh();dirty(true);return}
+    if(e.target.closest('[data-act="add"]')){
+      rows.push({name:'',qty:'1',price:'',disc:false});draw();refresh();dirty(true);
+      const inp=tb.querySelector('tr.r:last-of-type input');if(inp)inp.focus();
+    }
+  });
+  return {
+    set(items){rows=(items||[]).map(model);draw();refresh()},
+    get(){return list().filter(x=>x.name&&x.price===x.price&&x.price!==0)},
+    refresh,
+    count(){return rows.length}
+  };
+}
+/* הטבלה בטופס הקבלה */
+const rcItems=ItemsBox($('rcitems'),{
+  getCtx:()=>({total:parseFloat($('rcamt').value)||0,cat:$('rcc').value,store:storeOf($('rcm').value),exclude:null}),
+  emptyText:'לא זיהיתי פריטים בקבלה. אפשר להוסיף שורות ידנית.'
+});
+
+/* ---------- דף השוואת מחירים ---------- */
+async function renderPrices(){
+  const sumEl=$('prsum'),listEl=$('prlist');
+  sumEl.innerHTML='<p class="empty">טוען...</p>';listEl.innerHTML='';$('prscard').hidden=true;$('proncard').hidden=true;
+  const ok=await loadItems(true);
+  if(!ok){sumEl.innerHTML='<p class="empty">לא ניתן לטעון את הנתונים. בדקו חיבור לאינטרנט.</p>';return}
+  const rows=(itemsCache||[]).filter(r=>r.store&&Number(r.price)>0);
+  const receipts=new Set(rows.map(r=>r.tx_id)).size;
+  const table=priceTable(priceCl);
+  if(!rows.length){sumEl.innerHTML='<p class="empty">עוד אין פריטים. צלמו קבלות מזון מכמה רשתות, ובדף הזה יופיע באיזו רשת זול יותר לקנות כל מוצר.</p>';return}
+  /* כמה היו חוסכים בקניות שכבר נעשו, אילו הכול נקנה ברשת הזולה */
+  let paid=0,gain=0;
+  priceCl.forEach(c=>{
+    const sp=storePrices(c,null); if(sp.length<2) return;
+    c.rows.forEach(r=>{paid+=r.price;gain+=Math.max(0,r.u-sp[0].u)*r.qty});
+  });
+  sumEl.innerHTML=`<p class="hint" style="margin:0 0 10px">לפי ${receipts} ${receipts===1?'קבלת מזון':'קבלות מזון'}: ${priceCl.length} מוצרים, ו-${table.length} מהם נקנו ביותר מרשת אחת.</p>`+
+    (table.length?`<div class="cmpbox" style="margin:0 0 14px"><b>אם כל מוצר היה נקנה ברשת הזולה</b><div class="srow"><span>חיסכון בקניות שתועדו</span><b class="dn">${money2(r2(gain))}</b></div><small>מתוך ${money2(r2(paid))} שהוצאתם על המוצרים שהושוו (${paid>0?Math.round(gain/paid*100):0}%).</small></div>`:'');
+  if(!table.length){listEl.innerHTML='<p class="empty">עוד אין מוצר שנקנה בשתי רשתות. כשיהיה, יופיע כאן איפה הוא זול יותר.</p>'}
+  else listEl.innerHTML=table.slice(0,40).map(p=>{
+    const others=p.stores.slice(1).map(s=>`${esc(s.store)} ${money2(s.u)}`).join(' · ');
+    return `<div class="pr"><div class="ph"><b>${esc(p.name)}</b><span class="pg">פער ${money2(p.gap)} (${Math.round(p.pct*100)}%)</span></div><div class="pb dn">הכי זול ב<b>${esc(p.lo.store)}</b>: ${money2(p.lo.u)} <small>(${shortDate(p.lo.t)})</small></div><div class="po">${others}</div></div>`;
+  }).join('')+(table.length>40?`<p class="hint" style="margin:8px 0 0">מוצגים 40 הפערים הגדולים מתוך ${table.length}.</p>`:'');
+  /* לוח רשתות */
+  const st=new Map();
+  table.forEach(p=>p.stores.forEach(s=>{
+    const o=st.get(s.store)||{n:0,cheap:0,prem:0};
+    o.n++;if(s===p.lo)o.cheap++;o.prem+=(s.u-p.lo.u)/p.lo.u;st.set(s.store,o);
+  }));
+  if(st.size>=2){
+    const arr=[...st.entries()].map(([s,o])=>({s,...o,avg:o.prem/o.n})).sort((a,b)=>a.avg-b.avg||b.cheap-a.cheap);
+    $('prstores').innerHTML=`<p class="hint" style="margin:0 0 8px">${esc(arr[0].s)} יצאה הזולה ביותר במוצרים שהושוו: בממוצע ${Math.round(arr[0].avg*100)}% מעל המחיר הנמוך.</p><table class="pt"><thead><tr><th>רשת</th><th>מוצרים שהושוו</th><th>הכי זולה ב</th><th>יקרה מהזול ב</th></tr></thead><tbody>${arr.map(o=>`<tr><td><b>${esc(o.s)}</b></td><td>${o.n}</td><td>${o.cheap}</td><td>${Math.round(o.avg*100)}%</td></tr>`).join('')}</tbody></table>`;
+    $('prscard').hidden=false;
+  }
+  /* מוצרים שנקנו רק ברשת אחת */
+  const one=priceCl.filter(c=>storePrices(c,null).length===1);
+  if(one.length){
+    const by=new Map();
+    one.forEach(c=>{const s=storePrices(c,null)[0];(by.get(s.store)||by.set(s.store,[]).get(s.store)).push(c.rows[0].name)});
+    $('prone').innerHTML=`<details class="more"><summary>${one.length} מוצרים</summary>${[...by.entries()].map(([s,n])=>`<p style="margin:10px 0 0"><b>${esc(s)}</b><br><small>${n.slice(0,30).map(esc).join(', ')}${n.length>30?' ועוד':''}</small></p>`).join('')}</details>`;
+    $('proncard').hidden=false;
+  }
+}
+
+/* --- פתיחת קובץ תמונה --- */
+function loadImg(file){
+  return new Promise((res,rej)=>{
+    const url=URL.createObjectURL(file),im=new Image();
+    im.onload=()=>{URL.revokeObjectURL(url);res(im)};
+    im.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('img'))};
+    im.src=url;
+  });
+}
+
+/* ---------- סורק קבלות: זיהוי הקבלה בצילום, יישור, הלבנת הרקע וחידוד ---------- */
+/* משחרר את הזיכרון של קנבס שסיימנו איתו (בטלפון הזיכרון לקנבסים מוגבל, והדפדפן לא תמיד ממהר לפנות אותו) */
+const freeCv=c=>{try{if(c&&c.getContext){c.width=1;c.height=1}}catch(e){}};
+const SC_FULL=()=>[[0,0],[1,0],[1,1],[0,1]];
+/* התמונה כפי שהיא מוצגת (אחרי סיבוב של 0/90/180/270 מעלות), מוקטנת לצורך תצוגה וזיהוי */
+function scView(img,rot,max){
+  const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height,q=rot%180!==0;
+  const vw=q?ih:iw,vh=q?iw:ih,k=Math.min(1,max/Math.max(vw,vh));
+  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(vw*k));c.height=Math.max(1,Math.round(vh*k));
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.imageSmoothingQuality='high';
+  x.translate(c.width/2,c.height/2);x.rotate(rot*Math.PI/180);
+  const dw=q?c.height:c.width,dh=q?c.width:c.height;
+  x.drawImage(img,-dw/2,-dh/2,dw,dh);
+  return c;
+}
+/* נקודה בתצוגה (0..1) -> פיקסל בתמונת המקור */
+function scToSrc(p,rot,iw,ih){
+  const vx=p[0],vy=p[1];
+  if(rot===90) return [vy*iw,(1-vx)*ih];
+  if(rot===180) return [(1-vx)*iw,(1-vy)*ih];
+  if(rot===270) return [(1-vy)*iw,vx*ih];
+  return [vx*iw,vy*ih];
+}
+/* סיבוב המרובע עצמו ב-90 מעלות עם כיוון השעון, כשהמשתמש מסובב את התמונה */
+const scRotQuad=q=>{const r=q.map(p=>[1-p[1],p[0]]);return [r[3],r[0],r[1],r[2]]};
+
+/* --- זיהוי גבולות הקבלה --- */
+function scBox(a,w,h,r){ /* ממוצע בחלון (2r+1)², מופרד */
+  const t=new Float32Array(a.length),o=new Float32Array(a.length);
+  for(let y=0;y<h;y++){const b=y*w;let acc=0,cnt=0;for(let x=-r;x<w;x++){const i1=x+r,i0=x-r-1;if(i1<w){acc+=a[b+i1];cnt++}if(i0>=0){acc-=a[b+i0];cnt--}if(x>=0)t[b+x]=acc/cnt}}
+  for(let x=0;x<w;x++){let acc=0,cnt=0;for(let y=-r;y<h;y++){const i1=y+r,i0=y-r-1;if(i1<h){acc+=t[i1*w+x];cnt++}if(i0>=0){acc-=t[i0*w+x];cnt--}if(y>=0)o[y*w+x]=acc/cnt}}
+  return o;
+}
+function scOtsu(hist,n){
+  let sum=0;for(let i=0;i<256;i++)sum+=i*hist[i];
+  let wB=0,sB=0,best=-1,t=128;
+  for(let i=0;i<256;i++){wB+=hist[i];if(!wB)continue;const wF=n-wB;if(!wF)break;sB+=i*hist[i];const mB=sB/wB,mF=(sum-sB)/wF,v=wB*wF*(mB-mF)*(mB-mF);if(v>best){best=v;t=i}}
+  return t;
+}
+const scCross=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);
+function scHull(pts){
+  pts.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  const lo=[],up=[];
+  for(const p of pts){while(lo.length>=2&&scCross(lo[lo.length-2],lo[lo.length-1],p)<=0)lo.pop();lo.push(p)}
+  for(let i=pts.length-1;i>=0;i--){const p=pts[i];while(up.length>=2&&scCross(up[up.length-2],up[up.length-1],p)<=0)up.pop();up.push(p)}
+  lo.pop();up.pop();return lo.concat(up);
+}
+const scArea=p=>{let a=0;for(let i=0;i<p.length;i++){const q=p[(i+1)%p.length];a+=p[i][0]*q[1]-q[0]*p[i][1]}return a/2};
+/* המרובע הגדול ביותר שקודקודיו על המעטפת, ואז הזזת כל צלע החוצה עד שכל הנייר בפנים */
+function scQuadOf(hull,w,h){
+  if(hull.length<4) return null;
+  let v=hull.slice();
+  while(v.length>22){ /* מפשטים: מסירים בכל פעם את הקודקוד שתורם הכי פחות שטח */
+    let bi=0,ba=Infinity;
+    for(let i=0;i<v.length;i++){const a=Math.abs(scCross(v[(i+v.length-1)%v.length],v[i],v[(i+1)%v.length]));if(a<ba){ba=a;bi=i}}
+    v.splice(bi,1);
+  }
+  let best=null,bA=0;const n=v.length;
+  for(let a=0;a<n-3;a++)for(let b=a+1;b<n-2;b++)for(let c=b+1;c<n-1;c++)for(let d=c+1;d<n;d++){
+    const A=Math.abs(scArea([v[a],v[b],v[c],v[d]]));if(A>bA){bA=A;best=[v[a],v[b],v[c],v[d]]}
+  }
+  if(!best) return null;
+  const cx=(best[0][0]+best[1][0]+best[2][0]+best[3][0])/4,cy=(best[0][1]+best[1][1]+best[2][1]+best[3][1])/4;
+  const sideLen=i=>Math.hypot(best[(i+1)%4][0]-best[i][0],best[(i+1)%4][1]-best[i][1]);
+  const cap=0.12*Math.min(Math.max(sideLen(0),sideLen(2)),Math.max(sideLen(1),sideLen(3)));
+  const lines=[];
+  for(let i=0;i<4;i++){
+    const A=best[i],B=best[(i+1)%4],L=Math.hypot(B[0]-A[0],B[1]-A[1])||1,dx=(B[0]-A[0])/L,dy=(B[1]-A[1])/L;
+    let nx=dy,ny=-dx;if((cx-A[0])*nx+(cy-A[1])*ny>0){nx=-nx;ny=-ny} /* נורמל שפונה החוצה */
+    let far=0;for(const p of hull){const d=(p[0]-A[0])*nx+(p[1]-A[1])*ny;if(d>far)far=d}
+    const s=Math.min(far,cap);
+    lines.push({px:A[0]+nx*s,py:A[1]+ny*s,dx,dy});
+  }
+  const out=[];
+  for(let i=0;i<4;i++){
+    const a=lines[(i+3)%4],b=lines[i],den=a.dx*b.dy-a.dy*b.dx;
+    if(Math.abs(den)<1e-6) return null;
+    const t=((b.px-a.px)*b.dy-(b.py-a.py)*b.dx)/den;
+    out.push([Math.max(0,Math.min(w,a.px+a.dx*t)),Math.max(0,Math.min(h,a.py+a.dy*t))]);
+  }
+  /* סדר: שמאל-עליון, ימין-עליון, ימין-תחתון, שמאל-תחתון */
+  const mx=(out[0][0]+out[1][0]+out[2][0]+out[3][0])/4,my=(out[0][1]+out[1][1]+out[2][1]+out[3][1])/4;
+  out.sort((p,q)=>Math.atan2(p[1]-my,p[0]-mx)-Math.atan2(q[1]-my,q[0]-mx));
+  let s=0;for(let i=1;i<4;i++)if(out[i][0]+out[i][1]<out[s][0]+out[s][1])s=i;
+  return [out[s],out[(s+1)%4],out[(s+2)%4],out[(s+3)%4]];
+}
+/* ניסיון זיהוי בסף אחד: מסכת "נייר", מילוי חורים (הכתב), ולכל רכיב: כמה הוא דומה למרובע וכמה מהגבול שלו יושב על קצה חד בתמונה */
+function scTry(fb,gr,g0,w,h,t,all){
+  const n=w*h,m=new Uint8Array(n);let on=0;
+  for(let i=0;i<n;i++)if(fb[i]>t){m[i]=1;on++}
+  if(on<n*0.03||on>n*0.985) return null;
+  const st=new Int32Array(n);let sp=0;
+  const out=new Uint8Array(n);
+  const seed=i=>{if(!m[i]&&!out[i]){out[i]=1;st[sp++]=i}};
+  for(let x=0;x<w;x++){seed(x);seed((h-1)*w+x)}
+  for(let y=0;y<h;y++){seed(y*w);seed(y*w+w-1)}
+  while(sp){const q=st[--sp],qx=q%w;if(qx>0)seed(q-1);if(qx<w-1)seed(q+1);if(q>=w)seed(q-w);if(q<n-w)seed(q+w)}
+  for(let i=0;i<n;i++)if(!m[i]&&!out[i])m[i]=1; /* חורים בתוך הנייר */
+  const lab=new Uint8Array(n);let best=null;
+  for(let s0=0;s0<n;s0++){
+    if(!m[s0]||lab[s0]) continue;
+    sp=0;st[sp++]=s0;lab[s0]=1;let cnt=0,nb=0,ns=0,cl=0,cr=0,ct=0,cb=0;
+    const xmin=new Int32Array(h).fill(w),xmax=new Int32Array(h).fill(-1);
+    while(sp){
+      const q=st[--sp],qy=(q/w)|0,qx=q-qy*w;cnt++;
+      if(qx<xmin[qy])xmin[qy]=qx;if(qx>xmax[qy])xmax[qy]=qx;
+      let edge=false;
+      if(qx>0){if(m[q-1]){if(!lab[q-1]){lab[q-1]=1;st[sp++]=q-1}}else edge=true}else cl++;
+      if(qx<w-1){if(m[q+1]){if(!lab[q+1]){lab[q+1]=1;st[sp++]=q+1}}else edge=true}else cr++;
+      if(qy>0){if(m[q-w]){if(!lab[q-w]){lab[q-w]=1;st[sp++]=q-w}}else edge=true}else ct++;
+      if(qy<h-1){if(m[q+w]){if(!lab[q+w]){lab[q+w]=1;st[sp++]=q+w}}else edge=true}else cb++;
+      if(edge){nb++;if(gr[q]>=g0)ns++}
+    }
+    if(cnt<n*0.035) continue;
+    /* רכיב שמכסה צלע שלמה של התמונה, נוגע בשלוש צלעות, או יושב בפינה על שתי צלעות סמוכות, הוא הרקע ולא קבלה */
+    const fl=cl/h,fr=cr/h,ft=ct/w,fbm=cb/w;
+    if(Math.max(fl,fr,ft,fbm)>=0.85) continue;
+    if((fl>=0.3?1:0)+(fr>=0.3?1:0)+(ft>=0.3?1:0)+(fbm>=0.3?1:0)>=3) continue;
+    if((fl>=0.5||fr>=0.5)&&(ft>=0.5||fbm>=0.5)) continue;
+    const pts=[];
+    for(let y=0;y<h;y++)if(xmax[y]>=0){pts.push([xmin[y],y],[xmin[y],y+1],[xmax[y]+1,y],[xmax[y]+1,y+1])}
+    const quad=scQuadOf(scHull(pts),w,h);
+    if(!quad) continue;
+    const qa=Math.abs(scArea(quad));if(qa<1) continue;
+    const fill=Math.min(1,cnt/qa),area=qa/n;
+    if(area>0.955) continue;
+    const sup=nb>=16?ns/nb:0;
+    const inside=[0,1,2,3].every(i=>scCross(quad[i],quad[(i+1)%4],[w/2,h/2])>=0)||[0,1,2,3].every(i=>scCross(quad[i],quad[(i+1)%4],[w/2,h/2])<=0);
+    const score=sup*sup*fill*fill*Math.sqrt(area)*(inside?1.15:1);
+    const r={quad,fill,area,sup,score,t};
+    if(all) all.push(r);
+    if(!best||score>best.score) best=r;
+  }
+  return best;
+}
+function scDetect(src,dbg){
+  const W0=src.width,H0=src.height,k=Math.min(1,400/Math.max(W0,H0));
+  const w=Math.max(24,Math.round(W0*k)),h=Math.max(24,Math.round(H0*k)),n=w*h;
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(src,0,0,w,h);
+  const p=x.getImageData(0,0,w,h).data;freeCv(c);
+  /* שני מאפיינים שמבדילים נייר מרקע:
+     "לובן" (הנמוך מבין שלושת ערוצי הצבע): נייר בהיר ואפור, רקע כהה או צבעוני.
+     "אפרוריות" (היחס בין הערוץ הנמוך לגבוה): לא מושפעת מצל, ולכן מפרידה נייר מעץ, יד או מפה גם כשחלק מהקבלה מוצל */
+  const f1=new Float32Array(n),f2=new Float32Array(n);
+  for(let i=0,j=0;i<n;i++,j+=4){
+    const r=p[j],g=p[j+1],b=p[j+2],mn=r<g?(r<b?r:b):(g<b?g:b),mx=r>g?(r>b?r:b):(g>b?g:b);
+    f1[i]=mn;f2[i]=255*(mn+8)/(mx+8);
+  }
+  const all=dbg?[]:null;let best=null;
+  [f1,f2].forEach((f,fi)=>{
+    const fb=scBox(f,w,h,2),hist=new Uint32Array(256);
+    for(let i=0;i<n;i++)hist[fb[i]|0]++;
+    let lo=0,hi=255,acc=0;
+    for(let i=0;i<256;i++){acc+=hist[i];if(acc>=n*0.05){lo=i;break}}
+    acc=0;for(let i=255;i>=0;i--){acc+=hist[i];if(acc>=n*0.01){hi=i;break}}
+    if(hi-lo<12) return;
+    /* עוצמת הקצה בכל נקודה: הפרש על פני 4 פיקסלים */
+    const gr=new Float32Array(n);
+    for(let y=0;y<h;y++)for(let xx=0;xx<w;xx++){
+      const a=fb[y*w+Math.min(w-1,xx+2)]-fb[y*w+Math.max(0,xx-2)],b=fb[Math.min(h-1,y+2)*w+xx]-fb[Math.max(0,y-2)*w+xx];
+      gr[y*w+xx]=Math.max(Math.abs(a),Math.abs(b));
+    }
+    const g0=Math.max(10,0.13*hi),ts=[scOtsu(hist,n)];
+    for(let j=1;j<=12;j++)ts.push(Math.round(lo+(hi-lo)*j/13));
+    ts.filter((t,i,a)=>t>12&&t<252&&a.indexOf(t)===i).forEach(t=>{
+      const l0=all?all.length:0,r=scTry(fb,gr,g0,w,h,t,all);
+      if(all)for(let i=l0;i<all.length;i++)all[i].f=fi+1;
+      if(r&&(!best||r.score>best.score))best=r;
+    });
+  });
+  const res=(!best||best.fill<0.7||best.area<0.04||best.sup<0.6)
+    ?{ok:false,quad:SC_FULL(),fill:best?best.fill:0,area:best?best.area:0,sup:best?best.sup:0}
+    :{ok:true,quad:best.quad.map(q=>[q[0]/w,q[1]/h]),fill:best.fill,area:best.area,sup:best.sup,t:best.t};
+  if(dbg) res.all=all.map(r=>({f:r.f,t:r.t,area:+r.area.toFixed(3),fill:+r.fill.toFixed(2),sup:+r.sup.toFixed(2),score:+r.score.toFixed(3)}));
+  return res;
+}
+
+/* --- יישור: מיפוי פרויקטיבי מריבוע היחידה אל המרובע שסומן --- */
+function scHomog(q){
+  const x0=q[0][0],y0=q[0][1],x1=q[1][0],y1=q[1][1],x2=q[2][0],y2=q[2][1],x3=q[3][0],y3=q[3][1];
+  const dx1=x1-x2,dx2=x3-x2,sx=x0-x1+x2-x3,dy1=y1-y2,dy2=y3-y2,sy=y0-y1+y2-y3,den=dx1*dy2-dx2*dy1;
+  const g=den?(sx*dy2-dx2*sy)/den:0,h=den?(dx1*sy-sx*dy1)/den:0;
+  return [x1-x0+g*x1,x3-x0+h*x3,x0,y1-y0+g*y1,y3-y0+h*y3,y0,g,h];
+}
+/* המרובע תקין לסריקה: קמור, ולא קטן מדי */
+function scQuadOk(q){
+  let s=0;
+  for(let i=0;i<4;i++){const c=scCross(q[i],q[(i+1)%4],q[(i+2)%4]);if(Math.abs(c)<1e-5) return false;if(!s)s=Math.sign(c);else if(Math.sign(c)!==s) return false}
+  return Math.abs(scArea(q))>0.004;
+}
+/* הסריקה עצמה. מחזיר קנבס בגווני אפור: הקבלה ישרה, הרקע לבן, הכתב מחודד.
+   opt.plain: בלי הלבנה וחידוד (ניסיון קריאה חלופי) */
+function scScan(img,quad,rot,opt){
+  opt=opt||{};
+  const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;
+  const q=quad.map(p=>scToSrc(p,rot||0,iw,ih));
+  const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+  const qw=Math.max(dist(q[0],q[1]),dist(q[3],q[2])),qh=Math.max(dist(q[0],q[3]),dist(q[1],q[2]));
+  if(!(qw>=8&&qh>=8)) return null;
+  /* גודל הפלט: קבלה צרה וארוכה ברוחב 1500, מסמך רחב ברוחב 2000. מגדילים תמונה קטנה, אבל לא יותר מפי 2.6 */
+  let W=Math.min(qh/qw>=1.7?1500:2000,qw*2.6),H=W*qh/qw;
+  const cap=opt.cap||9.2e6;if(W*H>cap){const s=Math.sqrt(cap/(W*H));W*=s;H*=s}
+  W=Math.max(8,Math.round(W));H=Math.max(8,Math.round(H));
+  /* מהמקור לוקחים רק את המלבן שמקיף את המרובע, ברזולוציה שמספיקה לפלט */
+  const xs=q.map(p=>p[0]),ys=q.map(p=>p[1]);
+  const bx=Math.max(0,Math.floor(Math.min.apply(null,xs))-2),by=Math.max(0,Math.floor(Math.min.apply(null,ys))-2);
+  const ex=Math.min(iw,Math.ceil(Math.max.apply(null,xs))+2),ey=Math.min(ih,Math.ceil(Math.max.apply(null,ys))+2);
+  const bw=ex-bx,bh=ey-by;if(bw<4||bh<4) return null;
+  const k=Math.min(1.25*W/qw,Math.sqrt(Math.min(8.5e6,cap)/(bw*bh)));
+  const sw=Math.max(2,Math.round(bw*k)),sh=Math.max(2,Math.round(bh*k)),kx=sw/bw,ky=sh/bh;
+  const c=document.createElement('canvas');c.width=sw;c.height=sh;
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,sw,sh);x.imageSmoothingQuality='high';x.drawImage(img,bx,by,bw,bh,0,0,sw,sh);
+  let sd=x.getImageData(0,0,sw,sh).data;
+  const gray=new Uint8Array(sw*sh);
+  for(let i=0,j=0;i<gray.length;i++,j+=4)gray[i]=(sd[j]*77+sd[j+1]*150+sd[j+2]*29)>>8;
+  sd=null;
+  /* עותק קטן בצבע, לזיהוי הרקע שנשאר בתוך המסגרת */
+  const lw=Math.max(8,Math.round(W/4)),lh=Math.max(8,Math.round(H/4)),cw=Math.max(2,Math.round(sw/4)),ch=Math.max(2,Math.round(sh/4));
+  const c2=document.createElement('canvas');c2.width=cw;c2.height=ch;
+  const x2=c2.getContext('2d');x2.imageSmoothingQuality='high';x2.drawImage(c,0,0,cw,ch);
+  const cd=x2.getImageData(0,0,cw,ch).data;freeCv(c);freeCv(c2);
+  const qs=q.map(p=>[(p[0]-bx)*kx,(p[1]-by)*ky]),M=scHomog(qs);
+  const g=new Uint8Array(W*H);
+  for(let v=0;v<H;v++){
+    const fv=(v+.5)/H,nx=M[1]*fv+M[2],ny=M[4]*fv+M[5],d0=M[7]*fv+1,o=v*W;
+    for(let u=0;u<W;u++){
+      const fu=(u+.5)/W,d=M[6]*fu+d0;
+      let X=(M[0]*fu+nx)/d-.5,Y=(M[3]*fu+ny)/d-.5;
+      if(X<0)X=0;else if(X>sw-1.001)X=sw-1.001;
+      if(Y<0)Y=0;else if(Y>sh-1.001)Y=sh-1.001;
+      const x0=X|0,y0=Y|0,tx=X-x0,ty=Y-y0,i0=y0*sw+x0,a=gray[i0],b=gray[i0+1],e=gray[i0+sw],f=gray[i0+sw+1];
+      g[o+u]=(a+(b-a)*tx)*(1-ty)+(e+(f-e)*tx)*ty+.5;
+    }
+  }
+  const outC=document.createElement('canvas');outC.width=W;outC.height=H;
+  const ox=outC.getContext('2d'),od=ox.createImageData(W,H),op=od.data;
+  if(opt.plain){
+    for(let i=0,j=0;i<g.length;i++,j+=4){op[j]=op[j+1]=op[j+2]=g[i];op[j+3]=255}
+    ox.putImageData(od,0,0);return {canvas:outC,w:W,h:H,removed:0};
+  }
+  /* הרקע שנשאר בתוך המסגרת (עץ, יד, משטח כהה): צבעוני או כהה מאוד ביחס לנייר, ומחובר לשולי הסריקה. הופך ללבן */
+  const lr=new Float32Array(lw*lh),lg=new Float32Array(lw*lh),lb=new Float32Array(lw*lh);
+  const Ms=scHomog(qs.map(p=>[p[0]*cw/sw,p[1]*ch/sh]));
+  for(let v=0;v<lh;v++){
+    const fv=(v+.5)/lh;
+    for(let u=0;u<lw;u++){
+      const fu=(u+.5)/lw,d=Ms[6]*fu+Ms[7]*fv+1;
+      let X=(Ms[0]*fu+Ms[1]*fv+Ms[2])/d-.5,Y=(Ms[3]*fu+Ms[4]*fv+Ms[5])/d-.5;
+      if(X<0)X=0;else if(X>cw-1.001)X=cw-1.001;
+      if(Y<0)Y=0;else if(Y>ch-1.001)Y=ch-1.001;
+      const x0=X|0,y0=Y|0,tx=X-x0,ty=Y-y0,i0=(y0*cw+x0)*4,i1=i0+cw*4,w00=(1-tx)*(1-ty),w10=tx*(1-ty),w01=(1-tx)*ty,w11=tx*ty,i=v*lw+u;
+      lr[i]=cd[i0]*w00+cd[i0+4]*w10+cd[i1]*w01+cd[i1+4]*w11;
+      lg[i]=cd[i0+1]*w00+cd[i0+5]*w10+cd[i1+1]*w01+cd[i1+5]*w11;
+      lb[i]=cd[i0+2]*w00+cd[i0+6]*w10+cd[i1+2]*w01+cd[i1+6]*w11;
+    }
+  }
+  /* צבע הנייר: הפיקסלים הבהירים במרכז הסריקה */
+  const hs=new Uint32Array(256);let hn=0;
+  const x0c=Math.round(lw*.15),x1c=Math.round(lw*.85),y0c=Math.round(lh*.1),y1c=Math.round(lh*.9);
+  for(let v=y0c;v<y1c;v++)for(let u=x0c;u<x1c;u++){const i=v*lw+u;hs[Math.min(255,(lr[i]*.299+lg[i]*.587+lb[i]*.114)|0)]++;hn++}
+  let thr=255,acc=0;for(let i=255;i>=0;i--){acc+=hs[i];if(acc>=hn*0.3){thr=i;break}}
+  let pr=0,pg=0,pb=0,pn=0;
+  for(let v=y0c;v<y1c;v++)for(let u=x0c;u<x1c;u++){const i=v*lw+u;if(lr[i]*.299+lg[i]*.587+lb[i]*.114>=thr){pr+=lr[i];pg+=lg[i];pb+=lb[i];pn++}}
+  pr=Math.max(40,pr/(pn||1));pg=Math.max(40,pg/(pn||1));pb=Math.max(40,pb/(pn||1));
+  const like=new Uint8Array(lw*lh);
+  for(let i=0;i<like.length;i++){
+    const r=lr[i]/pr,gg=lg[i]/pg,b=lb[i]/pb,mx=Math.max(r,gg,b),mn=Math.min(r,gg,b);
+    like[i]=(mx-mn>0.13||r*.299+gg*.587+b*.114<0.3)?1:0;
+  }
+  const rem=new Uint8Array(lw*lh),st=new Int32Array(lw*lh);let sp=0,nrem=0;
+  const seed=i=>{if(like[i]&&!rem[i]){rem[i]=1;st[sp++]=i;nrem++}};
+  for(let u=0;u<lw;u++){seed(u);seed((lh-1)*lw+u)}
+  for(let v=0;v<lh;v++){seed(v*lw);seed(v*lw+lw-1)}
+  while(sp){const p=st[--sp],px=p%lw;if(px>0)seed(p-1);if(px<lw-1)seed(p+1);if(p>=lw)seed(p-lw);if(p<lw*lh-lw)seed(p+lw)}
+  let al=null;
+  if(nrem>0&&nrem<lw*lh*0.92){
+    /* מרחיבים בפיקסל אחד ומרככים, כדי שלא יישאר פס כהה בשולי הנייר */
+    const a0=new Float32Array(lw*lh);
+    for(let v=0;v<lh;v++)for(let u=0;u<lw;u++){
+      const i=v*lw+u;
+      a0[i]=(rem[i]||(u>0&&rem[i-1])||(u<lw-1&&rem[i+1])||(v>0&&rem[i-lw])||(v<lh-1&&rem[i+lw]))?1:0;
+    }
+    al=scBox(a0,lw,lh,1);
+  }
+  /* צבע הנייר המקומי (תאורה לא אחידה, צל): אחוזון גבוה בכל משבצת, התפשטות לשכנים, והחלקה */
+  const cs=Math.max(12,Math.round(W/56)),gw=Math.ceil(W/cs),gh=Math.ceil(H/cs);
+  let bg=new Float32Array(gw*gh);const hh=new Uint32Array(256);
+  for(let gy=0;gy<gh;gy++)for(let gx=0;gx<gw;gx++){
+    hh.fill(0);let cnt=0;const y1=Math.min(H,(gy+1)*cs),x1=Math.min(W,(gx+1)*cs);
+    for(let y=gy*cs;y<y1;y+=2){const o=y*W;for(let xx=gx*cs;xx<x1;xx+=2){hh[g[o+xx]]++;cnt++}}
+    let a2=0,v=255;for(let i=255;i>=0;i--){a2+=hh[i];if(a2>=cnt*0.12){v=i;break}}
+    bg[gy*gw+gx]=v;
+  }
+  /* משבצת שכולה דיו (לוגו, כתב צפוף) או רקע כהה מקבלת את צבע הנייר מהשכנות; משבצת רגילה שומרת את שלה, כך שגם קפל או צל צר מתיישרים */
+  const dil=new Float32Array(gw*gh);
+  for(let gy=0;gy<gh;gy++)for(let gx=0;gx<gw;gx++){
+    let m=0;for(let yy=Math.max(0,gy-1);yy<=Math.min(gh-1,gy+1);yy++)for(let xx=Math.max(0,gx-1);xx<=Math.min(gw-1,gx+1);xx++){const v=bg[yy*gw+xx];if(v>m)m=v}
+    const own=bg[gy*gw+gx];
+    dil[gy*gw+gx]=(opt.bgMax||own<m*0.72)?m:own;
+  }
+  bg=scBox(dil,gw,gh,1);
+  /* נרמול לפי צבע הנייר, ואז מתיחה: הנייר ללבן, הדיו לכהה */
+  const e=new Uint8Array(W*H),hist=new Uint32Array(256);
+  for(let y=0;y<H;y++){
+    const fy=Math.min(gh-1.001,Math.max(0,(y+.5)/cs-.5)),y0=fy|0,ty=fy-y0,o=y*W;
+    for(let xx=0;xx<W;xx++){
+      const fx=Math.min(gw-1.001,Math.max(0,(xx+.5)/cs-.5)),x0=fx|0,tx=fx-x0,i0=y0*gw+x0;
+      const b=(bg[i0]*(1-tx)+bg[i0+1]*tx)*(1-ty)+(bg[i0+gw]*(1-tx)+bg[i0+gw+1]*tx)*ty;
+      let v=g[o+xx]*235/(b<24?24:b);if(v>255)v=255;
+      e[o+xx]=v;hist[v|0]++;
+    }
+  }
+  let lo=0;acc=0;for(let i=0;i<256;i++){acc+=hist[i];if(acc>=W*H*0.012){lo=i;break}}
+  const black=Math.min(150,lo*0.8),white=222,kk=255/(white-black);
+  const lut=new Uint8Array(256);for(let i=0;i<256;i++){const v=(i-black)*kk;lut[i]=v<0?0:v>255?255:v}
+  for(let i=0;i<e.length;i++)e[i]=lut[e[i]];
+  /* חידוד (מסכת אי-חדות), והלבנת הרקע */
+  const amt=opt.sharp==null?0.7:opt.sharp;let dark=0;
+  for(let y=0;y<H;y++){
+    const o=y*W,fy=al?Math.min(lh-1.001,Math.max(0,(y+.5)*lh/H-.5)):0,ay=fy|0,ty=fy-ay;
+    for(let xx=0;xx<W;xx++){
+      const i=o+xx;let v=e[i];
+      if(amt&&y>0&&y<H-1&&xx>0&&xx<W-1){
+        const bl=(e[i-W-1]+2*e[i-W]+e[i-W+1]+2*e[i-1]+4*v+2*e[i+1]+e[i+W-1]+2*e[i+W]+e[i+W+1])/16;
+        v=v+amt*(v-bl);if(v<0)v=0;else if(v>255)v=255;
+      }
+      if(al){
+        const fx=Math.min(lw-1.001,Math.max(0,(xx+.5)*lw/W-.5)),ax=fx|0,tx=fx-ax,i0=ay*lw+ax;
+        let a=(al[i0]*(1-tx)+al[i0+1]*tx)*(1-ty)+(al[i0+lw]*(1-tx)+al[i0+lw+1]*tx)*ty;
+        a=a*1.6;if(a>1)a=1;
+        v=v+(255-v)*a;
+      }
+      if(v<110)dark++;
+      const j=i*4;op[j]=op[j+1]=op[j+2]=v;op[j+3]=255;
+    }
+  }
+  ox.putImageData(od,0,0);
+  /* blank: כמעט בלי דיו. בטלפון זה קורה כשהדפדפן לא הצליח להקצות זיכרון לתמונה */
+  return {canvas:outC,w:W,h:H,removed:al?nrem/(lw*lh):0,blank:dark<W*H*0.0003};
+}
+
+/* --- מנוע הקריאה (קבצים מקומיים באתר, עברית+אנגלית) --- */
+let tw=null,tessP=null,tessLog=()=>{},tessQuiet=false,rcBusy=false;
+const absUrl=p=>new URL(p,location.href).href;
+function loadTess(){
+  if(window.Tesseract) return Promise.resolve();
+  return tessP||(tessP=new Promise((res,rej)=>{
+    const s=document.createElement('script');s.src='ocr/tesseract.min.js';
+    s.onload=res;s.onerror=()=>{tessP=null;rej(new Error('tess'))};document.head.appendChild(s);
+  }));
+}
+async function getWorker(){
+  await loadTess();
+  if(!tw) tw=await Tesseract.createWorker('heb+eng',1,{workerPath:absUrl('ocr/worker.min.js'),corePath:absUrl('ocr/core'),langPath:absUrl('ocr/lang'),logger:m=>{if(!tessQuiet)tessLog(m)}});
+  return tw;
+}
+const rank={none:0,low:1,mid:2,high:3};
+const itemsSum=p=>Math.round(((p.items||[]).reduce((s,x)=>s+x.price,0))*100)/100;
+
+/* --- מחירים שהקריאה פספסה ---
+   מנוע הקריאה מחזיר לפעמים "0", מספר קטוע או אותיות במקום מחיר, בעיקר כשהמחיר רחוק משם המוצר באותה שורה.
+   מאתרים את עמודת המחירים לפי השורות שנקראו טוב, וקוראים שוב רק את תא המחיר של השורות החשודות,
+   כשהמנוע מוגבל לספרות. מחיר מתקבל רק כששתי קריאות של אותו תא, בגדלים שונים, מסכימות */
+async function fixPrices(w,cv,data){
+  const lines=[];
+  (data.blocks||[]).forEach(b=>(b.paragraphs||[]).forEach(p=>(p.lines||[]).forEach(l=>{
+    const t=String(l.text||'').replace(/\s+$/,'');
+    if(t.trim()&&l.bbox) lines.push({t,bb:l.bbox,ws:(l.words||[]).filter(x=>x.text&&x.text.trim()&&x.bbox)});
+  })));
+  if(lines.length<3) return data.text;
+  const W=cv.width,H=cv.height;
+  const cl=s=>String(s).replace(BIDI,'').replace(/[|\\\/()\[\]{}:;'"`*₪]+/g,'').trim();
+  const PR=/^-?\d{1,4}[.,]\d{2}-?$/,mid=x=>(x.bbox.x0+x.bbox.x1)/2,num=(a,b)=>a-b;
+  /* באיזה צד המחירים, ומה גבולות העמודה */
+  const left=[],right=[];
+  lines.forEach(l=>{
+    const pw=l.ws.filter(x=>PR.test(cl(x.text)));if(!pw.length) return;
+    const a=pw.reduce((m,x)=>x.bbox.x0<m.bbox.x0?x:m),z=pw.reduce((m,x)=>x.bbox.x1>m.bbox.x1?x:m);
+    if(mid(a)<W*0.4) left.push(a); else if(mid(z)>W*0.6) right.push(z);
+  });
+  const isL=left.length>=right.length;let col=isL?left:right;
+  if(col.length<3) return data.text;
+  const mc=col.map(mid).sort(num)[col.length>>1];
+  col=col.filter(x=>Math.abs(mid(x)-mc)<W*0.12);
+  if(col.length<3) return data.text;
+  const c0=Math.min.apply(null,col.map(x=>x.bbox.x0)),c1=Math.max.apply(null,col.map(x=>x.bbox.x1));
+  const hMed=col.map(x=>x.bbox.y1-x.bbox.y0).sort(num)[col.length>>1]||24;
+  const inCol=x=>{const c=mid(x);return c>=c0-W*0.03&&c<=c1+W*0.03};
+  const todo=[];
+  lines.forEach(l=>{
+    const cw=l.ws.filter(inCol);
+    if(cw.some(x=>PR.test(cl(x.text)))) return;
+    const t=normOcr(l.t),other=l.ws.filter(x=>!inCol(x));
+    /* 1. בתא המחיר יש ספרות או "0" שאינם מחיר תקין */
+    const bad=cw.filter(x=>{const s=cl(x.text);return /\d/.test(s)||/^[oO.,\-–—]+$/.test(s)});
+    /* 2. שורת סיכום בלי סכום. 3. שורת כמות או משקל בלי הסכום שלה */
+    const isTot=TOTALWORD.test(t)&&!/\d[.,]\d{2}/.test(t);
+    const isQty=/יחיד|ק"?ג(\s|$)/.test(t)&&/\d/.test(t)&&!/\d{7,}/.test(t);
+    /* 4. בתא המחיר יש משהו שנקרא כאותיות, והוא רחוק משאר השורה (כלומר תא נפרד ולא המשך של משפט) */
+    let far=false;
+    if(cw.length&&!bad.length&&other.length){
+      const gap=isL?Math.min.apply(null,other.map(x=>x.bbox.x0))-Math.max.apply(null,cw.map(x=>x.bbox.x1)):Math.min.apply(null,cw.map(x=>x.bbox.x0))-Math.max.apply(null,other.map(x=>x.bbox.x1));
+      far=gap>=W*0.06&&(other.map(x=>x.text).join('').match(/[א-ת]/g)||[]).length>=3&&cw.map(x=>cl(x.text)).join('').length<=7;
+    }
+    if(bad.length||isTot||(isQty&&!cw.length)||far) todo.push({l,drop:bad.length?bad:far?cw:[],pri:isTot?0:bad.length?1:2});
+  });
+  if(!todo.length) return data.text;
+  todo.sort((a,b)=>a.pri-b.pri);
+  let fixed=0;
+  tessQuiet=true;
+  await w.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'0123456789.,-'});
+  try{
+    for(const it of todo.slice(0,12)){
+      const l=it.l,cy=(l.bb.y0+l.bb.y1)/2,lh=Math.min(l.bb.y1-l.bb.y0,hMed*1.6);
+      const reads=[];
+      for(const o of [{py:.25,th:36,m:16},{py:.25,th:56,m:20},{py:.1,th:44,m:16}]){
+        const top=Math.max(0,Math.round(cy-lh/2-hMed*o.py)),bot=Math.min(H,Math.round(cy+lh/2+hMed*o.py));
+        /* הצד שפונה לשאר השורה נחתך צמוד, כדי שלא תיכנס ספרה מהעמודה הסמוכה (ברקוד) */
+        const L=Math.max(0,Math.round(c0-W*(isL?0.03:0.003))),R=Math.min(W,Math.round(c1+W*(isL?0.003:0.03)));
+        if(R-L<8||bot-top<8) continue;
+        const k=o.th/hMed,c=document.createElement('canvas');
+        c.width=Math.round((R-L)*k)+2*o.m;c.height=Math.round((bot-top)*k)+2*o.m;
+        const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.imageSmoothingQuality='high';
+        x.drawImage(cv,L,top,R-L,bot-top,o.m,o.m,Math.round((R-L)*k),Math.round((bot-top)*k));
+        let s='';try{s=((await w.recognize(c)).data.text||'').replace(/\s+/g,'')}catch(e){}
+        freeCv(c);reads.push(s);
+      }
+      /* שתי קריאות שמסכימות על מחיר מלא; או שלוש שמסכימות על מחיר שהספרה האחרונה שלו נחתכה */
+      const cnt={};let neg=false;
+      reads.forEach(s=>{const m=/^(-?)(\d{1,4})[.,](\d{2})(-?)$/.exec(s);if(m){const k2=(+m[2])+'.'+m[3];cnt[k2]=(cnt[k2]||0)+1;if(m[1]||m[4])neg=true}});
+      let val=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0];
+      if(!val||cnt[val]<2){
+        val=null;const one=reads.map(s=>/^(-?)(\d{1,4})[.,](\d)(-?)$/.exec(s));
+        if(reads.length===3&&one.every(Boolean)&&one.every(m=>m[2]===one[0][2]&&m[3]===one[0][3])){val=(+one[0][2])+'.'+one[0][3]+'0';neg=one.some(m=>m[1]||m[4])}
+      }
+      if(!val||!(parseFloat(val)>0)) continue;
+      const toks=l.t.replace(BIDI,'').split(/\s+/).filter(Boolean);
+      if(it.drop.some(x=>/[-–—]/.test(x.text))||toks.some(tk=>/^[-–—]$/.test(tk))) neg=true;
+      it.drop.map(x=>cl(x.text)).forEach(d=>{const j=toks.findIndex(tk=>cl(tk)===d);if(j>=0)toks.splice(j,1)});
+      l.t=toks.filter(tk=>!/^[-–—|]+$/.test(tk)).join(' ')+' '+parseFloat(val).toFixed(2)+(neg?'-':'');
+      fixed++;
+    }
+  }finally{
+    try{await w.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:''})}catch(e){}
+    tessQuiet=false;
+  }
+  return fixed?lines.map(l=>l.t).join('\n'):data.text;
+}
+
+/* קריאת סריקה אחת: הטקסט המלא, ואז השלמת מחירים שנקראו לא נכון */
+async function ocrText(w,cv){
+  await w.setParameters({tessedit_pageseg_mode:'6'});
+  const r=await w.recognize(cv,{},{text:true,blocks:true});
+  let text=r.data.text||'';
+  try{text=await fixPrices(w,cv,r.data)}catch(e){}
+  return text;
+}
+async function ocrReceipt(cv,alt){
+  const w=await getWorker();
+  const read=async c=>{
+    const text=await ocrText(w,c);
+    let p=parseReceipt(text),it=parseItems(text,p.best);
+    if(rank[p.conf]<2){ /* לא נמצאה שורת סיכום: ניסיון שני בפריסת טקסט מפוזרת */
+      await w.setParameters({tessedit_pageseg_mode:'11'});
+      const r=await w.recognize(c);
+      const p2=parseReceipt(r.data.text);
+      if(rank[p2.conf]>rank[p.conf]) p=p2;
+      if(!it.items.length){const it2=parseItems(r.data.text,p.best);if(it2.items.length) it=it2}
+      await w.setParameters({tessedit_pageseg_mode:'6'});
+    }
+    p.items=it.items;
+    return p;
+  };
+  let p=await read(cv);
+  /* לא נקרא כלום: ניסיון נוסף על אותה סריקה, בלי הלבנה וחידוד */
+  if(alt&&p.conf==='none'&&!p.items.length){
+    let c2=null;
+    try{c2=alt();if(c2){const p2=await read(c2.canvas);if(rank[p2.conf]>rank[p.conf]||p2.items.length>p.items.length) p=p2}}catch(e){}
+    if(c2) freeCv(c2.canvas);
+  }
+  return p;
+}
+
+/* --- הזרימה במסך --- */
+let rc=null,rcSeq=0,rcSeq0=0,rcUrl=null,rcSrc=null;
+const todayStr=()=>{const n=new Date();return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate())};
+function rcProg(msg,f){$('rcst').textContent=msg;$('rcbar').style.width=Math.round(Math.max(0,Math.min(1,f))*100)+'%'}
+/* מנקה את הטופס ואת הסריקה, אבל זוכר את הצילום, כדי שאפשר יהיה לתקן את המסגרת ולסרוק שוב */
+function rcReset(){
+  rc=null;rcSeq++;$('rcwork').hidden=true;$('rcform').hidden=true;$('rcdup').hidden=true;rcItems.set([]);
+  if(rcUrl){URL.revokeObjectURL(rcUrl);rcUrl=null}
+  $('rcimg').removeAttribute('src');$('rcrescan').hidden=true;$('rcnote').textContent='';
+}
+function rcClear(){rcReset();rcSrc=null;scHide();$('rcfc').value='';$('rcff').value=''}
+tessLog=m=>{
+  const st=m.status||'';
+  if(st==='loading tesseract core') rcProg('טוען את מנוע הקריאה...',.1+(m.progress||0)*.1);
+  else if(st==='loading language traineddata') rcProg('טוען נתוני שפה...',.2+(m.progress||0)*.15);
+  else if(st==='initializing api'||st==='initializing tesseract') rcProg('מאתחל...',.38);
+  else if(st==='recognizing text') rcProg('קורא את הקבלה...',.4+(m.progress||0)*.55);
+};
+/* צילום חדש: פותחים את הסורק. הקריאה מתחילה רק אחרי שהמסגרת אושרה */
+async function rcStart(file){
+  if(!file||rcBusy) return;
+  rcClear(); rcBusy=true;
+  try{
+    let img;
+    try{img=await loadImg(file)}catch(e){flash('לא ניתן לפתוח את התמונה');return}
+    rcSrc={img,rot:0,quad:null,ok:false,touched:false};
+    scOpen();
+  }finally{rcBusy=false}
+}
+
+/* --- מסך הסורק: הצילום עם מסגרת סביב הקבלה. גוררים פינה או צלע, ורואים הגדלה של המקום שנוגעים בו --- */
+let scCv=null,scDrag=null;
+for(let i=0;i<8;i++){const h=document.createElement('i');h.className='sch'+(i>3?' e':'');h.dataset.h=i;h.setAttribute('aria-hidden','true');$('scwrap').appendChild(h)}
+function scMsg(){
+  const s=rcSrc;if(!s) return;
+  $('scmsg').textContent=s.touched?'כשהמסגרת מקיפה את הקבלה, לחצו על סריקה.'
+    :s.ok?'הקבלה זוהתה. אם המסגרת לא מדויקת, גררו את הנקודות אל קצות הקבלה.'
+    :'לא זיהיתי את גבולות הקבלה. גררו את הנקודות אל פינות הקבלה, או סרקו את כל התמונה.';
+}
+function scOpen(){
+  const s=rcSrc;if(!s) return;
+  if(scCv){scCv.remove();freeCv(scCv);scCv=null}
+  try{scCv=scView(s.img,s.rot,1400)}catch(e){scCv=null}
+  if(!scCv||scCv.width<2){flash('לא ניתן לפתוח את התמונה');rcClear();return}
+  scCv.id='sccv';$('scwrap').insertBefore(scCv,$('scwrap').firstChild);
+  if(!s.quad){
+    let d=null;try{d=scDetect(scCv)}catch(e){}
+    s.quad=d?d.quad:SC_FULL();s.ok=!!(d&&d.ok);s.touched=false;
+  }
+  scMsg();$('sc').hidden=false;scLayout();
+}
+function scHide(){
+  $('sc').hidden=true;scDrag=null;$('sclupe').hidden=true;
+  if(scCv){scCv.remove();freeCv(scCv);scCv=null}
+}
+function scLayout(){
+  if(!scCv||$('sc').hidden) return;
+  const st=$('scstage'),pad=28,aw=Math.max(60,st.clientWidth-2*pad),ah=Math.max(60,st.clientHeight-2*pad);
+  const k=Math.min(aw/scCv.width,ah/scCv.height),wr=$('scwrap');
+  wr.style.width=Math.round(scCv.width*k)+'px';wr.style.height=Math.round(scCv.height*k)+'px';
+  scDraw();
+}
+function scDraw(){
+  const s=rcSrc,wr=$('scwrap');if(!s||!s.quad) return;
+  const dw=wr.clientWidth,dh=wr.clientHeight,P=s.quad.map(p=>[p[0]*dw,p[1]*dh]);
+  const d=P.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join('')+'Z';
+  $('scsvg').setAttribute('viewBox','0 0 '+dw+' '+dh);
+  $('scdim').setAttribute('d','M0 0H'+dw+'V'+dh+'H0Z'+d);
+  $('scpoly').setAttribute('d',d);$('scpoly').classList.toggle('bad',!scQuadOk(s.quad));
+  const hs=wr.querySelectorAll('.sch');
+  for(let i=0;i<4;i++){
+    hs[i].style.left=P[i][0]+'px';hs[i].style.top=P[i][1]+'px';
+    const a=P[i],b=P[(i+1)%4],e=hs[4+i];
+    e.style.left=(a[0]+b[0])/2+'px';e.style.top=(a[1]+b[1])/2+'px';
+    e.style.transform='rotate('+Math.atan2(b[1]-a[1],b[0]-a[0])+'rad)';
+    e.hidden=Math.hypot(b[0]-a[0],b[1]-a[1])<118; /* צלע קצרה: אין מקום לידית באמצע */
+  }
+}
+/* זכוכית מגדלת: האצבע מסתירה את הנקודה שגוררים, ולכן מציגים אותה מוגדלת בצד השני של המסך */
+function scLupe(){
+  const L=$('sclupe'),d=scDrag,s=rcSrc;
+  if(!d||!s||!scCv){L.hidden=true;return}
+  const q=s.quad,pt=d.i<4?q[d.i]:[(q[d.i-4][0]+q[(d.i-3)%4][0])/2,(q[d.i-4][1]+q[(d.i-3)%4][1])/2];
+  const S=124,dpr=Math.min(3,window.devicePixelRatio||1),px=Math.round(S*dpr);
+  if(L.width!==px){L.width=px;L.height=px}
+  const x=L.getContext('2d'),dw=$('scwrap').clientWidth||1,sw=S/2.6*scCv.width/dw;
+  const sx=pt[0]*scCv.width-sw/2,sy=pt[1]*scCv.height-sw/2,f=px/sw;
+  x.fillStyle='#0b111c';x.fillRect(0,0,px,px);
+  const ax=Math.max(0,sx),ay=Math.max(0,sy),bx=Math.min(scCv.width,sx+sw),by=Math.min(scCv.height,sy+sw);
+  if(bx>ax&&by>ay){x.imageSmoothingQuality='high';x.drawImage(scCv,ax,ay,bx-ax,by-ay,(ax-sx)*f,(ay-sy)*f,(bx-ax)*f,(by-ay)*f)}
+  x.strokeStyle='#2dd4bf';x.lineWidth=2*dpr;x.beginPath();
+  q.forEach((p,j)=>{const X=(p[0]*scCv.width-sx)*f,Y=(p[1]*scCv.height-sy)*f;if(j)x.lineTo(X,Y);else x.moveTo(X,Y)});
+  x.closePath();x.stroke();
+  const c=px/2,r=9*dpr;
+  x.strokeStyle='#fff';x.lineWidth=1.5*dpr;x.beginPath();x.moveTo(c-r,c);x.lineTo(c+r,c);x.moveTo(c,c-r);x.lineTo(c,c+r);x.stroke();
+  L.style.left=pt[0]<0.5?'auto':'12px';L.style.right=pt[0]<0.5?'12px':'auto';
+  L.hidden=false;
+}
+const scPt=e=>{const r=$('scwrap').getBoundingClientRect();return [(e.clientX-r.left)/(r.width||1),(e.clientY-r.top)/(r.height||1)]};
+$('scwrap').addEventListener('pointerdown',e=>{
+  const h=e.target.closest('.sch');if(!h||!rcSrc||scDrag) return;
+  e.preventDefault();
+  try{h.setPointerCapture(e.pointerId)}catch(err){}
+  scDrag={i:+h.dataset.h,id:e.pointerId,p0:scPt(e),q0:rcSrc.quad.map(p=>p.slice()),el:h};
+  h.classList.add('on');scLupe();
+});
+$('scwrap').addEventListener('pointermove',e=>{
+  const d=scDrag;if(!d||e.pointerId!==d.id||!rcSrc) return;
+  e.preventDefault();
+  const p=scPt(e),idx=d.i<4?[d.i]:[d.i-4,(d.i-3)%4];
+  let dx=p[0]-d.p0[0],dy=p[1]-d.p0[1];
+  /* לא יוצאים מגבולות התמונה. בגרירת צלע שתי הנקודות שלה זזות יחד */
+  idx.forEach(j=>{dx=Math.max(-d.q0[j][0],Math.min(1-d.q0[j][0],dx));dy=Math.max(-d.q0[j][1],Math.min(1-d.q0[j][1],dy))});
+  const q=d.q0.map(v=>v.slice());idx.forEach(j=>{q[j]=[d.q0[j][0]+dx,d.q0[j][1]+dy]});
+  rcSrc.quad=q;
+  if(!rcSrc.touched){rcSrc.touched=true;scMsg()}
+  scDraw();scLupe();
+});
+const scEnd=e=>{const d=scDrag;if(!d||e.pointerId!==d.id) return;d.el.classList.remove('on');scDrag=null;scLupe()};
+$('scwrap').addEventListener('pointerup',scEnd);
+$('scwrap').addEventListener('pointercancel',scEnd);
+addEventListener('resize',scLayout);
+$('scx').onclick=()=>{scHide();if(!rc)rcClear()};
+$('scrot').onclick=()=>{const s=rcSrc;if(!s) return;s.rot=(s.rot+90)%360;s.quad=scRotQuad(s.quad);scOpen()};
+$('scall').onclick=()=>{const s=rcSrc;if(!s) return;s.quad=SC_FULL();s.touched=true;scMsg();scDraw()};
+$('scauto').onclick=()=>{const s=rcSrc;if(!s) return;s.quad=null;scOpen()};
+$('scok').onclick=()=>{
+  const s=rcSrc;if(!s||rcBusy) return;
+  if(!scQuadOk(s.quad)){$('scmsg').textContent='המסגרת לא תקינה. סדרו את הנקודות כך שיקיפו את הקבלה.';return}
+  scHide();rcScan();
+};
+$('rcrescan').onclick=()=>{if(!rcBusy&&rcSrc)scOpen()};
+/* הסריקה בגודל מלא, עם הגדלה */
+function zvOpen(src){if(!src) return;$('zvimg').src=src;$('zv').classList.remove('big');$('zvz').textContent='הגדלה';$('zv').hidden=false;$('zvs').scrollTop=0}
+function zvClose(){$('zv').hidden=true;$('zvimg').removeAttribute('src')}
+const zvZoom=()=>{const b=$('zv').classList.toggle('big');$('zvz').textContent=b?'הקטנה':'הגדלה'};
+$('zvx').onclick=zvClose;$('zvz').onclick=zvZoom;$('zvimg').onclick=zvZoom;
+$('rcimg').onclick=()=>zvOpen(rcUrl);
+$('rvimg').onclick=()=>zvOpen($('rvimg').getAttribute('src'));
+
+/* הסריקה והקריאה: מיישרים ומחדדים לפי המסגרת, שומרים את הסריקה כתמונת הקבלה, וקוראים ממנה */
+async function rcScan(){
+  const s=rcSrc;if(!s||rcBusy) return;
+  rcReset(); const my=rcSeq; rcBusy=true;
+  $('rcwork').hidden=false; rcProg('מיישר ומחדד את הסריקה...',.04);
+  try{
+    await new Promise(r=>setTimeout(r,40)); /* נותנים למסך להתעדכן לפני העבודה הכבדה */
+    let sc=null;
+    /* אם הדפדפן לא הצליח להקצות זיכרון (הסריקה יצאה ריקה), מנסים שוב בגודל קטן יותר */
+    for(const cap of [9.2e6,4.5e6]){
+      try{sc=scScan(s.img,s.quad,s.rot,{cap})}catch(e){sc=null}
+      if(sc&&!sc.blank) break;
+      if(sc&&cap>5e6){freeCv(sc.canvas);sc=null}
+    }
+    if(!sc){flash('לא ניתן לעבד את התמונה. נסו לצלם שוב');rcClear();return}
+    let blob=await new Promise(r=>sc.canvas.toBlob(r,'image/jpeg',0.75));
+    if(blob&&blob.size>3.6e6) blob=await new Promise(r=>sc.canvas.toBlob(r,'image/jpeg',0.5));
+    if(!blob||my!==rcSeq){freeCv(sc.canvas);if(!blob){flash('לא ניתן לעבד את התמונה');rcClear()}return}
+    rcUrl=URL.createObjectURL(blob); $('rcimg').src=rcUrl;
+    rc={blob,guess:null,key:''};
+    $('rcrescan').hidden=false;
+    let p=null,failed=false;const t0=Date.now();
+    try{p=await ocrReceipt(sc.canvas,()=>scScan(s.img,s.quad,s.rot,{plain:true,cap:4.5e6}))}catch(e){failed=true}
+    const note=`סריקה ${sc.w}×${sc.h}, קריאה ${Math.max(1,Math.round((Date.now()-t0)/1000))} שניות`;
+    freeCv(sc.canvas);
+    if(my!==rcSeq) return;
+    rcFill(p,failed); $('rcnote').textContent=note;
+  }finally{rcBusy=false}
+}
+function rcFill(p,failed){
+  p=p||{best:null,alts:[],conf:'none',date:null,merchant:'',guess:null};
+  rc.guess=p.guess; rc.conf=p.conf;
+  rcProg(failed?'לא הצלחתי לקרוא את הקבלה':'הקבלה נקראה',1);
+  $('rcform').hidden=false;
+  $('rcamt').value=p.best==null?'':String(p.best);
+  $('rcalts').innerHTML=p.alts.map(v=>`<button type="button" class="lb" data-v="${v}">${money2(v)}</button>`).join('');
+  $('rcm').value=p.merchant||'';
+  $('rcd').max=todayStr();
+  $('rcd').value=p.date?p.date.y+'-'+pad(p.date.m)+'-'+pad(p.date.d):todayStr();
+  if(user) setUser(user); /* מסמן את מי שמתעד כרגע; אפשר להחליף למטה */
+  rcMon();
+  $('rcc').innerHTML='<option value="">בחרו קטגוריה</option>'+CATS.map(c=>`<option${p.guess&&p.guess.c===c?' selected':''}>${esc(c)}</option>`).join('');
+  const why=[];
+  if(failed) why.push('אפשר למלא את הפרטים ידנית, והתמונה תישמר עם ההוצאה.');
+  else{
+    why.push(p.guess?(p.guess.src==='learned'?`הקטגוריה: ${p.guess.c}, לפי בית עסק שכבר תיעדתם.`:`הקטגוריה: ${p.guess.c}, לפי "${p.guess.hit}" בקבלה.`):'לא זיהיתי את סוג העסק. בחרו קטגוריה.');
+    if(p.conf==='none') why.push('לא זיהיתי סכום. הקלידו אותו לפי התמונה.');
+    else if(p.conf!=='high') why.push('לא בטוחה בסכום, כדאי לבדוק אותו מול התמונה.');
+    if(!p.date) why.push('לא זיהיתי תאריך, נבחר היום.');
+  }
+  $('rcwhy').innerHTML=why.map(esc).join('<br>');
+  rcItems.set(p.items||[]);
+  loadItems().then(()=>{if(rc)rcItems.refresh()}); /* מחירים קודמים להשוואה */
+  rcSync(); rcDupSoon();
+}
+function rcSync(){
+  const a=parseFloat($('rcamt').value),c=$('rcc').value;
+  $('rcsave').textContent=a>0&&c?`שמירה ב${c}, ${money2(a)}`:'שמירה';
+  if(rc) rcItems.refresh(); /* הסכום, הקטגוריה והרשת משפיעים על ההשוואה */
+}
+$('rccam').onclick=()=>{if(!rcBusy)$('rcfc').click()};
+$('rcgal').onclick=()=>{if(!rcBusy)$('rcff').click()};
+$('rcfc').addEventListener('change',e=>rcStart(e.target.files[0]));
+$('rcff').addEventListener('change',e=>rcStart(e.target.files[0]));
+$('rcx').onclick=rcClear;
+$('rcamt').addEventListener('input',()=>{clean($('rcamt'));rcSync();rcDupSoon()});
+$('rcc').addEventListener('change',rcSync);
+$('rcm').addEventListener('input',()=>{if(rc)rcItems.refresh()});
+$('rcd').addEventListener('change',()=>{rcMon();rcDupSoon()});
+$('rcusr').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setUser(b.dataset.u)});
+/* אם התאריך בקבלה הוא של חודש אחר, ההוצאה לא תופיע ביומן של החודש הנוכחי: אומרים את זה לפני השמירה */
+const monName=(Y,M)=>new Intl.DateTimeFormat('he-IL',{month:'long',year:'numeric',calendar:'gregory'}).format(new Date(Y,M-1,1));
+function rcMon(){
+  const box=$('rcmon'),d=$('rcd').value;
+  if(!d){box.hidden=true;return}
+  const [Y,M,D]=d.split('-').map(Number),n=new Date();
+  if(Y===n.getFullYear()&&M-1===n.getMonth()){box.hidden=true;return}
+  box.innerHTML=`התאריך שנקרא מהקבלה הוא <b>${D}/${M}/${Y}</b>, ולכן ההוצאה תירשם ב<b>${esc(monName(Y,M))}</b> ולא תופיע ביומן של החודש הנוכחי.<br><button class="lb" type="button" data-act="today">להשתמש בתאריך של היום</button>`;
+  box.hidden=false;
+}
+$('rcmon').addEventListener('click',e=>{if(e.target.closest('[data-act="today"]')){$('rcd').value=todayStr();rcMon();rcDupSoon()}});
+$('rcalts').addEventListener('click',e=>{const b=e.target.closest('button');if(b){$('rcamt').value=b.dataset.v;rcSync();rcDupSoon()}});
+
+/* אם אותה קנייה כבר תועדה (למשל מחלונית Apple Pay), מציעים לצרף אליה את הקבלה ולא לספור פעמיים */
+const rcDupSoon=(()=>{let t;return()=>{clearTimeout(t);t=setTimeout(rcDup,350)}})();
+async function rcDup(){
+  const box=$('rcdup'),my=++rcSeq0;
+  const a=parseFloat($('rcamt').value),d=$('rcd').value;
+  if(rc) rc.dup=null; box.hidden=true;
+  if(!rc||!sb||!(a>0)||!d) return;
+  const [Y,M,D]=d.split('-').map(Number);
+  const q=await sb.from('tx').select('id,a,c,t,by_name,note').eq('type','e').eq('del',false).is('receipt',null).eq('a',a)
+    .gte('t',new Date(Y,M-1,D-1).getTime()).lt('t',new Date(Y,M-1,D+2).getTime()).order('t',{ascending:false}).limit(3);
+  if(my!==rcSeq0||!rc||q.error||!q.data||!q.data.length) return;
+  rc.dup=q.data;
+  box.innerHTML=q.data.map(x=>{
+    const dt=new Date(Number(x.t)),when=dt.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit'})+' '+dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    return `<div>כבר תועדה הוצאה כזו: <b>${esc(x.c)}, ${money2(Number(x.a))}</b>, ${when}${x.by_name?', על ידי '+esc(x.by_name):''}.<br>אם זו אותה קנייה, צרפו אליה את הקבלה ולא תיווסף הוצאה חדשה. אם זו קנייה אחרת, לחצו על השמירה למטה.<br><button class="lb" type="button" data-id="${esc(x.id)}" data-i="${esc(x.c+', '+money2(Number(x.a)))}">צירוף הקבלה להוצאה הזו</button></div>`;
+  }).join('<hr style="border:0;border-top:1px solid var(--line);margin:10px 0">');
+  box.hidden=false;
+}
+
+async function rcUpload(){
+  const d=new Date(),id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():Date.now()+'-'+Math.random().toString(16).slice(2);
+  const path=`${d.getFullYear()}-${pad(d.getMonth()+1)}/${id}.jpg`;
+  const {error}=await sb.storage.from('receipts').upload(path,rc.blob,{contentType:'image/jpeg',upsert:false});
+  if(error) throw error;
+  return path;
+}
+let rcSaving=false;
+$('rcsave').onclick=async()=>{
+  if(!rc||rcSaving) return;
+  if(!user){flash('בחרו קודם מי מתעד');return}
+  const a=parseFloat($('rcamt').value),c=$('rcc').value,d=$('rcd').value;
+  if(!(a>0)){flash('הקלידו סכום');return}
+  if(!c){flash('בחרו קטגוריה');return}
+  if(!d){flash('בחרו תאריך');return}
+  const [Y,M,D]=d.split('-').map(Number),isToday=d===todayStr();
+  const merchant=$('rcm').value.trim();
+  rcSaving=true; $('rcsave').disabled=true;
+  let path=null;
+  try{
+    try{path=await rcUpload()}catch(e){flash('לא ניתן להעלות את התמונה. בדקו חיבור לאינטרנט');return}
+    const when=isToday?Date.now():new Date(Y,M-1,D,12).getTime();
+    const ok=await addTx({type:'e',a,c,t:when,note:merchant,receipt:path});
+    if(!ok){sb.storage.from('receipts').remove([path]);return}
+    const txId=last;
+    const g=rc.guess,key=(g&&g.hit)||merchant;
+    if(key&&(!g||g.c!==c)) await saveRule(key,c);
+    const li=rcItems.get();
+    const itemsOk=await saveItems(txId,li,{store:storeOf(merchant),cat:c,t:when,by:user});
+    const now=new Date(),other=!(Y===now.getFullYear()&&M-1===now.getMonth());
+    flash(`נשמרו ${money(a)} ב${c}, עם תמונת הקבלה`+(li.length&&itemsOk?` ו-${li.length} פריטים`:'')+(other?`. התאריך ${D}/${M}/${Y}, ולכן ההוצאה נמצאת ב${monName(Y,M)}`:'')+(li.length&&!itemsOk?'. פירוט הפריטים לא נשמר, אפשר לנסות שוב מהקבלות האחרונות':''),true);
+    rcClear(); loadReceipts();
+  }finally{rcSaving=false;$('rcsave').disabled=false}
+};
+$('rcdup').addEventListener('click',async e=>{
+  const b=e.target.closest('button[data-id]'); if(!b||!rc||rcSaving) return;
+  rcSaving=true; b.disabled=true;
+  let path=null;
+  try{
+    try{path=await rcUpload()}catch(err){flash('לא ניתן להעלות את התמונה. בדקו חיבור לאינטרנט');return}
+    const {error}=await sb.from('tx').update({receipt:path}).eq('id',b.dataset.id);
+    if(error){sb.storage.from('receipts').remove([path]);flash('לא ניתן לצרף את הקבלה. בדקו חיבור לאינטרנט');return}
+    const li=rcItems.get(),ex=(rc.dup||[]).find(d=>d.id===b.dataset.id);
+    let itemsOk=true;
+    if(li.length&&ex) itemsOk=await saveItems(ex.id,li,{store:storeOf($('rcm').value||ex.note||''),cat:ex.c,t:Number(ex.t),by:user});
+    flash(`הקבלה צורפה להוצאה הקיימת (${b.dataset.i}). לא נוספה הוצאה חדשה`+(li.length&&ex?(itemsOk?`. נשמרו ${li.length} פריטים`:'. פירוט הפריטים לא נשמר'):'')); rcClear(); await load(); loadReceipts();
+  }finally{rcSaving=false;b.disabled=false}
+});
+
+/* צפייה בקבלות שנשמרו */
+async function signedUrls(paths){
+  if(!paths.length) return {};
+  const {data,error}=await sb.storage.from('receipts').createSignedUrls(paths,3600);
+  const m={}; if(!error&&data) data.forEach(x=>{if(x.signedUrl)m[x.path]=x.signedUrl});
+  return m;
+}
+async function loadReceipts(){
+  if(!sb||!authed) return;
+  const q=await sb.from('tx').select('id,a,c,t,by_name,note,receipt').not('receipt','is',null).eq('del',false).order('t',{ascending:false}).limit(12);
+  if(q.error){$('rclist').innerHTML='<p class="empty">לא ניתן לטעון את הקבלות</p>';return}
+  const rows=q.data;
+  if(!rows.length){$('rclist').innerHTML='<p class="empty">עוד אין קבלות.</p>';return}
+  const urls=await signedUrls(rows.map(r=>r.receipt));
+  $('rclist').innerHTML=rows.map(r=>{
+    const d=new Date(Number(r.t)),when=d.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit'});
+    const info=`${r.c}, ${money2(Number(r.a))}${r.note?', '+r.note:''}`;
+    return `<div class="rli"><button class="thumb" type="button" data-p="${esc(r.receipt)}" data-id="${esc(r.id)}" data-i="${esc(info)}" data-a="${Number(r.a)}" data-c="${esc(r.c)}" data-n="${esc(r.note||'')}" data-t="${Number(r.t)}" aria-label="פתיחת תמונת הקבלה">${urls[r.receipt]?`<img src="${esc(urls[r.receipt])}" alt="" loading="lazy">`:''}</button><div><b>${esc(r.c)}</b> ${money2(Number(r.a))}<br><small>${esc(r.note||'')}${r.note?', ':''}${when}${r.by_name?', '+esc(r.by_name):''}</small></div></div>`;
+  }).join('');
+}
+$('rclist').addEventListener('click',e=>{const b=e.target.closest('.thumb');if(b)openReceipt(b.dataset.p,b.dataset.i,b.dataset.id,{a:Number(b.dataset.a),c:b.dataset.c,n:b.dataset.n,t:Number(b.dataset.t)})});
+let rvCur=null,rvArm=false,rvTimer=null,rvSeq=0;
+function rvReset(){clearTimeout(rvTimer);rvArm=false;$('rvimgdel').textContent='מחיקת התמונה בלבד'}
+function closeRv(){rvSeq++;$('rv').hidden=true;$('rvimg').removeAttribute('src');rvCur=null;rvReset();rvBox.set([]);$('rvist').textContent='';$('rvisave').hidden=true}
+/* פירוט הפריטים בצופה: טעינה, עריכה ושמירה */
+const rvBox=ItemsBox($('rvitems'),{
+  getCtx:()=>rvCur?{total:rvCur.a||0,cat:rvCur.c||'',store:rvCur.store||'',exclude:rvCur.id}:{total:0,cat:'',store:'',exclude:null},
+  onChange:d=>{$('rvisave').hidden=!d},
+  emptyText:'אין פירוט פריטים לקבלה הזו. אפשר לקרוא אותו מהתמונה או להוסיף שורות ידנית.'
+});
+async function rvLoadItems(id){
+  const my=++rvSeq;
+  const q=await sb.from('receipt_items').select('id,name,qty,price,off,store,pos').eq('tx_id',id).order('pos',{ascending:true});
+  if(my!==rvSeq||!rvCur||rvCur.id!==id) return;
+  if(q.error){$('rvist').textContent='לא ניתן לטעון את פירוט הפריטים';return}
+  rvCur.itemIds=q.data.map(x=>x.id);
+  rvCur.store=(q.data[0]&&q.data[0].store)||storeOf(rvCur.n||'');
+  rvBox.set(q.data.map(x=>({name:x.name,qty:Number(x.qty),price:Number(x.price),off:Number(x.off)||0,disc:Number(x.price)<0})));
+  $('rvisave').hidden=true;
+  await loadItems();
+  if(my===rvSeq&&rvCur&&rvCur.id===id) rvBox.refresh();
+}
+async function openReceipt(path,info,id,meta){
+  const u=(await signedUrls([path]))[path];
+  if(!u){flash('לא ניתן לפתוח את התמונה');return}
+  meta=meta||{};
+  rvCur={path,id,a:meta.a,c:meta.c,n:meta.n,t:meta.t,store:storeOf(meta.n||''),itemIds:[]}; rvReset(); $('toast').classList.remove('show');
+  rvBox.set([]); $('rvist').textContent=''; $('rvisave').hidden=true;
+  $('rvimg').src=u; $('rvfull').href=u; $('rvinfo').textContent=info||''; $('rv').hidden=false;
+  rvLoadItems(id);
+}
+$('rvisave').onclick=async()=>{
+  if(!rvCur||!rvCur.id||rcSaving) return;
+  const cur=rvCur,li=rvBox.get(),old=cur.itemIds.slice();
+  rcSaving=true; $('rvisave').disabled=true;
+  try{
+    const ok=await saveItems(cur.id,li,{store:cur.store||storeOf(cur.n||''),cat:cur.c||'',t:cur.t||Date.now(),by:user});
+    if(!ok){$('rvist').textContent='לא ניתן לשמור את הפירוט. בדקו חיבור לאינטרנט';return}
+    if(old.length) await sb.from('receipt_items').delete().in('id',old); /* מוחקים את הישנות רק אחרי שהחדשות נשמרו */
+    itemsDirty=true;
+    $('rvist').textContent=li.length?`נשמרו ${li.length} פריטים`:'הפירוט נמחק';
+    if(rvCur&&rvCur.id===cur.id) await rvLoadItems(cur.id);
+  }finally{rcSaving=false;$('rvisave').disabled=false}
+};
+/* קריאה מחדש של הפריטים מהתמונה השמורה (לקבלות שנשמרו לפני שהיה פירוט) */
+$('rvread').onclick=async()=>{
+  if(!rvCur||rcBusy) return;
+  const cur=rvCur,prevLog=tessLog; rcBusy=true; $('rvread').disabled=true;
+  const st=t=>{if(rvCur&&rvCur.id===cur.id)$('rvist').textContent=t};
+  st('קורא את הפריטים מהתמונה...');
+  tessLog=m=>{const s=m.status||'';if(s==='loading tesseract core'||s==='loading language traineddata')st('טוען את מנוע הקריאה...');else if(s==='recognizing text')st('קורא את הפריטים מהתמונה... '+Math.round((m.progress||0)*100)+'%')};
+  try{
+    let blob;
+    try{blob=await (await fetch($('rvimg').src)).blob()}catch(e){st('לא ניתן לקרוא את התמונה מהאחסון. צלמו את הקבלה שוב');return}
+    const img=await loadImg(blob),w=await getWorker(),total=+cur.a||0;
+    /* אותו סורק כמו בצילום חדש: בידוד הקבלה מהרקע, יישור וחידוד. תמונה שכבר נסרקה נשארת כמו שהיא */
+    let det={ok:false,quad:SC_FULL()};
+    try{const v=scView(img,0,1280);det=scDetect(v);freeCv(v)}catch(e){}
+    const run=async quad=>{
+      const sc=scScan(img,quad,0);if(!sc) return {items:[],sum:0};
+      try{return parseItems(await ocrText(w,sc.canvas),total)}finally{freeCv(sc.canvas)}
+    };
+    let it=await run(det.quad);
+    if(!it.items.length&&det.ok){st('מנסה שוב על כל התמונה...');it=await run(SC_FULL())}
+    if(!rvCur||rvCur.id!==cur.id) return;
+    if(!it.items.length){st('לא זיהיתי פריטים בתמונה. אפשר להוסיף שורות ידנית.');return}
+    rvBox.set(it.items); $('rvisave').hidden=false;
+    st(`נקראו ${it.items.length} פריטים. בדקו אותם ולחצו על "שמירת הפירוט".`);
+  }catch(e){st('הקריאה נכשלה. אפשר להוסיף שורות ידנית')}
+  finally{
+    rcBusy=false;$('rvread').disabled=false;tessLog=prevLog;
+    if(location.hash!=='#receipts'&&tw){tw.terminate();tw=null}
+  }
+};
+$('rvx').onclick=closeRv;
+/* מחיקת התמונה בלבד: הלחיצה הראשונה רק מבקשת אישור, כי אי אפשר לשחזר תמונה שנמחקה */
+$('rvimgdel').onclick=async()=>{
+  if(!rvCur||!rvCur.id) return;
+  if(!rvArm){rvArm=true;$('rvimgdel').textContent='לחצו שוב: התמונה תימחק';rvTimer=setTimeout(rvReset,4000);return}
+  const cur=rvCur; rvReset();
+  const {error}=await sb.from('tx').update({receipt:null}).eq('id',cur.id);
+  if(error){flash('לא ניתן למחוק. בדקו חיבור לאינטרנט');return}
+  sb.storage.from('receipts').remove([cur.path]);
+  closeRv(); flash('התמונה נמחקה. ההוצאה נשארה ביומן'); await load(); loadReceipts();
+};
+/* מחיקת ההוצאה: אותה מחיקה רכה כמו ביומן, אפשר לשחזר משם והתמונה חוזרת איתה */
+$('rvtxdel').onclick=async()=>{
+  if(!rvCur||!rvCur.id) return;
+  const cur=rvCur;
+  if(await setDel(cur.id,true)){closeRv();flash('ההוצאה נמחקה ונשארה ביומן. אפשר לשחזר אותה משם');loadReceipts()}
+};
+
+/* ---------- login & start ---------- */
+(function(){
+  const q=new URLSearchParams(location.search);
+  if(q.get('apay')){lset('budget-pending',{a:parseAmt(q.get('amt')),m:q.get('m')||''});history.replaceState(null,'',location.pathname+location.hash)}
+})();
+/* כניסה: שם משתמש וסיסמה. אחרי כמה ניסיונות שגויים יש המתנה שהולכת וגדלה (ובנוסף Supabase מגביל ניסיונות בשרת) */
+const LOGIN_DOMAIN='@example.com';
+let meName='',failN=Number(lget('budget-fails',0))||0,lockUntil=Number(lget('budget-lock',0))||0,lockT=null;
+function lockMsg(){
+  const s=Math.ceil((lockUntil-Date.now())/1000);
+  if(s>0){$('lerr').textContent=`יותר מדי ניסיונות שגויים. אפשר לנסות שוב בעוד ${s} שניות`;$('lbtn').disabled=true;clearTimeout(lockT);lockT=setTimeout(lockMsg,1000)}
+  else{$('lbtn').disabled=false;if(/ניסיונות/.test($('lerr').textContent))$('lerr').textContent=''}
+}
+$('lf').addEventListener('submit',async e=>{
+  e.preventDefault(); $('lerr').textContent='';
+  if(!sb){$('lerr').textContent='אין חיבור לשרת';return}
+  if(Date.now()<lockUntil) return lockMsg();
+  let u=$('em').value.trim().toLowerCase();
+  if(!u){$('lerr').textContent='הקלידו שם משתמש';$('em').focus();return}
+  if(!u.includes('@')) u+=LOGIN_DOMAIN;
+  $('lbtn').disabled=true;
+  const {error}=await sb.auth.signInWithPassword({email:u,password:$('pw').value});
+  $('lbtn').disabled=false;
+  if(error){
+    if(error.status===429){lockUntil=Date.now()+60000;lset('budget-lock',lockUntil);return lockMsg()}
+    failN++;lset('budget-fails',failN);
+    if(failN>=5){lockUntil=Date.now()+Math.min(15*60,30*2**(failN-5))*1000;lset('budget-lock',lockUntil);return lockMsg()}
+    $('lerr').textContent='שם המשתמש או הסיסמה שגויים';return;
+  }
+  failN=0;lset('budget-fails',0);lset('budget-lock',0);$('pw').value='';
+});
+/* קוד מאפליקציית האימות, למי שהפעיל אימות דו-שלבי */
+async function mfaCheck(){
+  try{
+    const {data}=await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+    mfaNeed=!!(data&&data.nextLevel==='aal2'&&data.currentLevel!=='aal2');
+  }catch(e){mfaNeed=false}
+  return mfaNeed;
+}
+$('mf').addEventListener('submit',async e=>{
+  e.preventDefault();$('merr').textContent='';
+  const code=$('mcode').value.replace(/\D/g,'');
+  if(code.length!==6){$('merr').textContent='הקוד הוא 6 ספרות';return}
+  if(Date.now()<lockUntil){$('merr').textContent='יותר מדי ניסיונות. נסו שוב בעוד דקה';return}
+  $('mbtn').disabled=true;
+  try{
+    const f=await sb.auth.mfa.listFactors(),fac=f.data&&f.data.totp&&f.data.totp.find(x=>x.status==='verified');
+    if(!fac){$('merr').textContent='לא נמצא אמצעי אימות';return}
+    const {error}=await sb.auth.mfa.challengeAndVerify({factorId:fac.id,code});
+    if(error){
+      failN++;lset('budget-fails',failN);
+      if(failN>=5){lockUntil=Date.now()+60000*Math.min(15,failN-4);lset('budget-lock',lockUntil)}
+      $('merr').textContent=error.status===429?'יותר מדי ניסיונות. נסו שוב בעוד דקה':'הקוד שגוי או שפג תוקפו';return;
+    }
+    failN=0;lset('budget-fails',0);$('mcode').value='';
+  }finally{$('mbtn').disabled=false}
+});
+$('mout').onclick=()=>$('logout').click();
+/* הפעלה וביטול של אימות דו-שלבי מתוך ההגדרות */
+let mfaPending=null;
+async function renderMfa(){
+  if(!sb||!authed) return;
+  const f=await sb.auth.mfa.listFactors();if(f.error) return;
+  const on=(f.data.totp||[]).filter(x=>x.status==='verified');
+  $('mfast').textContent=on.length?'פעיל. בכל כניסה תתבקשו גם לקוד מאפליקציית האימות.':'כבוי. מומלץ להפעיל: גם מי שיודע את הסיסמה לא ייכנס בלי הטלפון שלכם.';
+  $('mfaon').hidden=!!on.length||!!mfaPending;$('mfaoff').hidden=!on.length;$('mfaoff').dataset.id=on.length?on[0].id:'';
+}
+$('mfaon').onclick=async()=>{
+  const f=await sb.auth.mfa.listFactors();
+  for(const x of (f.data&&f.data.all||[]).filter(x=>x.status!=='verified')) await sb.auth.mfa.unenroll({factorId:x.id}); /* ניסיון קודם שלא הושלם */
+  const {data,error}=await sb.auth.mfa.enroll({factorType:'totp',friendlyName:'budget-'+Date.now()});
+  if(error){flash('לא ניתן להפעיל כרגע. נסו שוב');return}
+  mfaPending=data.id;$('mfaqr').src=data.totp.qr_code;$('mfasec').textContent=data.totp.secret;
+  $('mfaset').hidden=false;$('mfaon').hidden=true;$('mfacode').value='';$('mfacode').focus();
+};
+$('mfaver').onclick=async()=>{
+  const code=$('mfacode').value.replace(/\D/g,'');if(code.length!==6){flash('הקוד הוא 6 ספרות');return}
+  const {error}=await sb.auth.mfa.challengeAndVerify({factorId:mfaPending,code});
+  if(error){flash('הקוד שגוי. ודאו שהשעה בטלפון מדויקת ונסו את הקוד הבא');return}
+  mfaPending=null;$('mfaset').hidden=true;$('mfaqr').removeAttribute('src');$('mfasec').textContent='';
+  flash('האימות הדו-שלבי הופעל');renderMfa();
+};
+$('mfacancel').onclick=async()=>{if(mfaPending)await sb.auth.mfa.unenroll({factorId:mfaPending});mfaPending=null;$('mfaset').hidden=true;renderMfa()};
+$('mfaoff').onclick=async()=>{
+  if(!confirmTwice($('mfaoff'),'לחצו שוב לביטול')) return;
+  const {error}=await sb.auth.mfa.unenroll({factorId:$('mfaoff').dataset.id});
+  if(error){flash('לא ניתן לבטל. צאו והיכנסו שוב עם הקוד, ואז נסו שוב');return}
+  await sb.auth.refreshSession();flash('האימות הדו-שלבי בוטל');renderMfa();
+};
+/* לחיצה ראשונה מבקשת אישור, השנייה מבצעת */
+function confirmTwice(b,txt){
+  if(b.dataset.armed){delete b.dataset.armed;b.textContent=b.dataset.orig;return true}
+  b.dataset.orig=b.textContent;b.dataset.armed='1';b.textContent=txt;
+  setTimeout(()=>{if(b.dataset.armed){delete b.dataset.armed;b.textContent=b.dataset.orig}},4000);return false;
+}
+$('logout').onclick=async()=>{if(sb){await sb.removeAllChannels();ch=null;await sb.auth.signOut()}};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&authed)load()});
+applyBg(lget('budget-bg','')); setUser(user); lockMsg();
+if(sb){
+  sb.auth.onAuthStateChange((ev,sess)=>{
+    /* שם מי שמחובר: נשמר בחשבון שלו בשרת */
+    meName=sess&&sess.user&&sess.user.user_metadata?String(sess.user.user_metadata.name||''):'';tick();
+    if(meName&&!user) setUser(meName);
+    setTimeout(async()=>{
+      const need=sess?await mfaCheck():false;
+      authed=!!sess&&!need; mfaNeed=need; show();
+      if(need) setTimeout(()=>$('mcode').focus(),50);
+      if(authed){live();load();apayCheck();renderMfa()} else {tx=[];pplTx=[];render()}
+    },0);
+  });
+}else $('lerr').textContent='חסרים פרטי החיבור ל-Supabase בראש קובץ הקוד';
+show(); tick(); setInterval(tick,1000); render();
