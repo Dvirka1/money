@@ -243,11 +243,18 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 .homeflow>section{margin-bottom:14px}
 .homeflow>.hero{margin-bottom:0}
 .lyl{list-style:none;margin:0 0 10px;padding:0}
-.lyl li{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)}
-.lyl li span{flex:1}
-.lyl button{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--chip);color:var(--ink);font-size:1.1rem;cursor:pointer}
-.lyl button:disabled{opacity:.35;cursor:default}
-.lyl li.moved{background:var(--chip)}
+.lyl li{display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid var(--line);background:var(--card)}
+.lyl li .ln{flex:1}
+.lyl li.off .ln{color:var(--muted);text-decoration:line-through}
+.lyl li.drag{position:relative;z-index:2;box-shadow:0 6px 18px rgba(0,0,0,.25);border-radius:10px;background:var(--chip)}
+.lyl .grip{width:44px;height:44px;display:grid;place-items:center;color:var(--muted);cursor:grab;touch-action:none;border-radius:10px;flex:none}
+.lyl li.drag .grip{cursor:grabbing;color:var(--accent)}
+.lyl .grip:focus-visible{outline:2px solid var(--accent)}
+.lyv{display:flex;align-items:center;gap:6px;min-height:44px;font-size:.85rem;color:var(--muted);cursor:pointer}
+.lyv input{width:22px;height:22px;accent-color:var(--accent);margin:0}
+.lyrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lyrow select{flex:1;min-width:0;min-height:44px}
+.homeflow>section.lyoff{display:none!important}
 .svh{font-size:1rem;margin:18px 0 0}
 .svchart{margin-top:12px}
 .svchart svg{display:block;width:100%;height:auto;overflow:visible}
@@ -356,10 +363,13 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
     <p class="hint">היעד נשמר ומשותף בין המכשירים. המסך הראשי יציג כמה נשאר ממנו.</p>
   </section>
   <section class="card">
-    <h2>סדר הקוביות במסך הבית</h2>
-    <p class="hint" style="margin-top:0">הסדר נשמר לכל אחד בנפרד, בחשבון שלו, ועובר איתו בין מכשירים.</p>
-    <ol id="lyl" class="lyl"></ol>
-    <button class="pill" id="lyreset" type="button">חזרה לסדר הרגיל</button>
+    <h2>פריסת מסך הבית</h2>
+    <p class="hint" style="margin-top:0">לכל אחד פריסות משלו, שנשמרות בחשבון שלו ועוברות איתו בין מכשירים. גוררים קוביה בידית כדי לשנות את הסדר, ומסמנים מה להציג. שינוי בפריסה הרגילה יוצר ממנה פריסה אישית, כך שתמיד אפשר לחזור לרגיל.</p>
+    <div class="lyrow"><label class="lbl" for="lysel" style="margin:0">הפריסה הפעילה</label><select id="lysel" class="txt"></select></div>
+    <div class="lyrow" style="margin-top:8px"><button class="pill" id="lynew" type="button">שמירה כפריסה חדשה</button><button class="pill" id="lydel" type="button" hidden>מחיקת הפריסה</button></div>
+    <div id="lyform" hidden style="display:flex;gap:8px;margin-top:8px"><input class="txt" id="lyname" type="text" maxlength="30" autocomplete="off" placeholder="שם הפריסה, לדוגמה סוף חודש" aria-label="שם הפריסה החדשה" style="flex:1;min-width:0"><button class="btn" id="lysave" type="button">שמירה</button></div>
+    <ol id="lyl" class="lyl" style="margin-top:12px"></ol>
+    <button class="pill" id="lyreset" type="button">חזרה לפריסה הרגילה</button>
   </section>
   <section class="card">
     <h2>אימות דו-שלבי</h2>
@@ -550,6 +560,6 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 
 <div id="toast"><div><span id="msg"></span><button id="undo">ביטול</button></div></div>
 
-<script src="app.js?v=c5def41baa"></script>
+<script src="app.js?v=46c2c17153"></script>
 </body>
 </html>

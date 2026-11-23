@@ -2305,36 +2305,103 @@ $('mf').addEventListener('submit',async e=>{
   }finally{$('mbtn').disabled=false}
 });
 $('mout').onclick=()=>$('logout').click();
-/* ---------- סדר הקוביות במסך הבית: לכל משתמש בנפרד, נשמר בחשבון שלו ---------- */
+/* ---------- פריסות מסך הבית: לכל משתמש פריסות משלו (סדר הקוביות ומה מוצג), נשמרות בחשבון שלו ---------- */
 const LAYOUT=[['hero','שעה וברכה'],['rem','תזכורות החודש'],['entry','תיעוד תנועה'],['month','סיכום החודש'],['savings','חיסכון ומה שנצבר'],['people','הוצאות עבור אנשים'],['targets','יעדים לפי קטגוריה'],['pie','חלוקה לפי קטגוריות'],['log','יומן תנועות']];
-const LDEF=LAYOUT.map(x=>x[0]);
-let layout=LDEF.slice();
-function normLayout(v){const o=(Array.isArray(v)?v:[]).filter((k,i,a)=>LDEF.includes(k)&&a.indexOf(k)===i);return o.concat(LDEF.filter(k=>!o.includes(k)))}
+const LDEF=LAYOUT.map(x=>x[0]),LNAME=Object.fromEntries(LAYOUT),LBASE='רגיל';
+function normOrder(v){const o=(Array.isArray(v)?v:[]).filter((k,i,a)=>LDEF.includes(k)&&a.indexOf(k)===i);return o.concat(LDEF.filter(k=>!o.includes(k)))}
+const newLy=(n,o,hd)=>({n:String(n).slice(0,30),o:normOrder(o),h:(Array.isArray(hd)?hd:[]).filter(k=>LDEF.includes(k))});
+let lys={active:LBASE,list:[newLy(LBASE)]};
+const curLy=()=>lys.list.find(x=>x.n===lys.active)||lys.list[0];
+function normLys(v,old){
+  /* גרסה קודמת שמרה רק סדר אחד */
+  if(!v&&Array.isArray(old)) v={active:'הפריסה שלי',list:[{n:'הפריסה שלי',o:old,h:[]}]};
+  const list=(v&&Array.isArray(v.list)?v.list:[]).filter(x=>x&&x.n).map(x=>newLy(x.n,x.o,x.h)).filter((x,i,a)=>a.findIndex(y=>y.n===x.n)===i).slice(0,12);
+  /* הפריסה הרגילה תמיד בסדר ברירת המחדל ומציגה הכול */
+  const bi=list.findIndex(x=>x.n===LBASE);if(bi>=0)list.splice(bi,1);list.unshift(newLy(LBASE));
+  return {active:list.some(x=>x.n===(v&&v.active))?v.active:LBASE,list};
+}
 function applyLayout(){
-  const home=$('v-home');
-  layout.forEach((k,i)=>{const el=home.querySelector(`:scope>section[data-k="${k}"]`);if(el)el.style.order=i});
-  const name=Object.fromEntries(LAYOUT);
-  $('lyl').innerHTML=layout.map((k,i)=>`<li data-k="${k}"><span>${esc(name[k])}</span><button type="button" data-mv="-1" aria-label="להזיז את ${esc(name[k])} למעלה"${i===0?' disabled':''}>▲</button><button type="button" data-mv="1" aria-label="להזיז את ${esc(name[k])} למטה"${i===layout.length-1?' disabled':''}>▼</button></li>`).join('');
+  const L=curLy(),home=$('v-home');
+  L.o.forEach((k,i)=>{const el=home.querySelector(`:scope>section[data-k="${k}"]`);if(el){el.style.order=i;el.classList.toggle('lyoff',L.h.includes(k))}});
+  $('lysel').innerHTML=lys.list.map(x=>`<option${x.n===L.n?' selected':''}>${esc(x.n)}</option>`).join('');
+  $('lydel').hidden=L.n===LBASE;
+  $('lyl').innerHTML=L.o.map(k=>`<li data-k="${k}"${L.h.includes(k)?' class="off"':''}><span class="grip" tabindex="0" role="button" aria-label="גרירה של ${esc(LNAME[k])}. אפשר גם בחצים במקלדת" aria-roledescription="פריט שאפשר לגרור"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></svg></span><span class="ln">${esc(LNAME[k])}</span><label class="lyv"><input type="checkbox"${L.h.includes(k)?'':' checked'} aria-label="להציג את ${esc(LNAME[k])}"><span>מוצג</span></label></li>`).join('');
 }
 function setLayoutFromUser(u){
-  const v=u&&u.user_metadata&&u.user_metadata.layout;
-  layout=normLayout(v||lget('budget-layout',null));applyLayout();
+  const m=u&&u.user_metadata||{};
+  lys=normLys(m.layouts||lget('budget-layouts',null),m.layout);applyLayout();
 }
 let lyT=null;
 function saveLayout(){
-  lset('budget-layout',layout);
-  clearTimeout(lyT);lyT=setTimeout(async()=>{if(sb&&authed){const {error}=await sb.auth.updateUser({data:{layout}});if(error)flash('הסדר נשמר רק במכשיר הזה')}},700);
+  lset('budget-layouts',lys);
+  clearTimeout(lyT);lyT=setTimeout(async()=>{if(sb&&authed){const {error}=await sb.auth.updateUser({data:{layouts:lys}});if(error)flash('הפריסה נשמרה רק במכשיר הזה')}},400);
 }
-$('lyl').addEventListener('click',e=>{
-  const b=e.target.closest('button[data-mv]');if(!b) return;
-  const k=b.closest('li').dataset.k,i=layout.indexOf(k),j=i+Number(b.dataset.mv);
-  if(j<0||j>=layout.length) return;
-  [layout[i],layout[j]]=[layout[j],layout[i]];applyLayout();saveLayout();
-  const li=$('lyl').querySelector(`li[data-k="${k}"]`);li.classList.add('moved');
-  const nb=li.querySelector(`button[data-mv="${b.dataset.mv}"]`);(nb&&!nb.disabled?nb:li.querySelector('button:not(:disabled)')).focus();
+/* שינוי בפריסה הרגילה יוצר ממנה עותק אישי, כדי שתמיד אפשר יהיה לחזור לרגיל */
+function lyEditable(){
+  const L=curLy();if(L.n!==LBASE) return L;
+  let n='הפריסה שלי',i=2;while(lys.list.some(x=>x.n===n))n='הפריסה שלי '+(i++);
+  const c=newLy(n,L.o.slice(),L.h.slice());lys.list.push(c);lys.active=n;flash(`נוצרה פריסה אישית: "${n}". אפשר לחזור לרגיל בכל רגע`);return c;
+}
+const lyOrderFromDom=()=>[...$('lyl').children].map(li=>li.dataset.k);
+/* גרירה: מחזיקים את הידית ומזיזים. הרשימה מתעדכנת תוך כדי, והשמירה קורית רק כשעוזבים */
+let lyDrag=null;
+$('lyl').addEventListener('pointerdown',e=>{
+  const g=e.target.closest('.grip');if(!g) return;
+  e.preventDefault();const li=g.closest('li');
+  try{g.setPointerCapture(e.pointerId)}catch(err){}
+  lyDrag={li,id:e.pointerId,dy:e.clientY-li.getBoundingClientRect().top};li.classList.add('drag');
 });
-$('lyreset').onclick=()=>{layout=LDEF.slice();applyLayout();saveLayout();flash('הסדר חזר לברירת המחדל')};
-setLayoutFromUser(null);
+$('lyl').addEventListener('pointermove',e=>{
+  const d=lyDrag;if(!d||e.pointerId!==d.id) return;
+  e.preventDefault();
+  const items=[...$('lyl').children];
+  for(const o of items){
+    if(o===d.li) continue;
+    const r=o.getBoundingClientRect(),mid=r.top+r.height/2;
+    const before=items.indexOf(o)<items.indexOf(d.li);
+    if(before&&e.clientY<mid){$('lyl').insertBefore(d.li,o);break}
+    if(!before&&e.clientY>mid){$('lyl').insertBefore(d.li,o.nextSibling);break}
+  }
+  /* גלילה כשמגיעים לקצה המסך */
+  if(e.clientY<60) scrollBy(0,-12); else if(e.clientY>innerHeight-60) scrollBy(0,12);
+});
+const lyDrop=e=>{
+  const d=lyDrag;if(!d||e.pointerId!==d.id) return;
+  d.li.classList.remove('drag');lyDrag=null;
+  const o=lyOrderFromDom();
+  if(o.join()!==curLy().o.join()){const L=lyEditable();L.o=o;applyLayout();saveLayout();const g=$('lyl').querySelector(`li[data-k="${d.li.dataset.k}"] .grip`);if(g)g.focus({preventScroll:true})}
+};
+$('lyl').addEventListener('pointerup',lyDrop);$('lyl').addEventListener('pointercancel',lyDrop);
+/* מקלדת: חץ למעלה או למטה על הידית מזיז את הקוביה */
+$('lyl').addEventListener('keydown',e=>{
+  const g=e.target.closest('.grip');if(!g||(e.key!=='ArrowUp'&&e.key!=='ArrowDown')) return;
+  e.preventDefault();const k=g.closest('li').dataset.k,i0=curLy().o.indexOf(k),j0=i0+(e.key==='ArrowUp'?-1:1);
+  if(j0<0||j0>=LDEF.length) return;
+  const L=lyEditable(),i=L.o.indexOf(k),j=i+(e.key==='ArrowUp'?-1:1);
+  [L.o[i],L.o[j]]=[L.o[j],L.o[i]];applyLayout();saveLayout();$('lyl').querySelector(`li[data-k="${k}"] .grip`).focus();
+});
+$('lyl').addEventListener('change',e=>{
+  const c=e.target.closest('input[type=checkbox]');if(!c) return;
+  const L=lyEditable(),k=c.closest('li').dataset.k;
+  L.h=c.checked?L.h.filter(x=>x!==k):L.h.concat(k);applyLayout();saveLayout();
+});
+$('lysel').onchange=()=>{lys.active=$('lysel').value;applyLayout();saveLayout();flash(`הפריסה "${lys.active}" הופעלה`)};
+$('lynew').onclick=()=>{const f=$('lyform');f.hidden=!f.hidden;if(!f.hidden){$('lyname').value='';$('lyname').focus()}};
+$('lysave').onclick=()=>{
+  const n=$('lyname').value.replace(/\s+/g,' ').trim();
+  if(!n){$('lyname').focus();return}
+  if(lys.list.some(x=>x.n===n)){flash('כבר יש פריסה בשם הזה');return}
+  if(lys.list.length>=12){flash('אפשר לשמור עד 12 פריסות');return}
+  const L=curLy();lys.list.push(newLy(n,L.o.slice(),L.h.slice()));lys.active=n;
+  $('lyform').hidden=true;applyLayout();saveLayout();flash(`נשמרה פריסה חדשה: "${n}". שינויים מעכשיו נשמרים בה`);
+};
+$('lyname').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('lysave').click()}});
+$('lydel').onclick=()=>{
+  const L=curLy();if(L.n===LBASE) return;
+  if(!confirmTwice($('lydel'),'לחצו שוב למחיקה')) return;
+  lys.list=lys.list.filter(x=>x!==L);lys.active=LBASE;applyLayout();saveLayout();flash(`הפריסה "${L.n}" נמחקה`);
+};
+$('lyreset').onclick=()=>{lys.active=LBASE;applyLayout();saveLayout();flash('הפריסה הרגילה הופעלה. הפריסות ששמרתם נשארו ברשימה')};
 
 /* הפעלה וביטול של אימות דו-שלבי מתוך ההגדרות */
 let mfaPending=null;
