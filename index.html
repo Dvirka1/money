@@ -264,6 +264,20 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 #svlist .svr{display:grid;grid-template-columns:1fr auto auto;gap:4px 12px;padding:8px 0;border-top:1px solid var(--line);font-size:.9rem;align-items:baseline}
 #svlist .svr small{grid-column:1/-1;color:var(--muted)}
 #svlist .svr b.neg{color:var(--bad)}
+.big{display:block;font-size:2rem;font-weight:800;margin:6px 0 2px}
+.gl .tt{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.gl .tt b{font-size:1.1rem}
+.gl .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.gl .acts>*{flex:1 1 auto}
+.gl .mv{margin-top:10px}
+.gl .mv .amt{margin:0;box-sizing:border-box;width:100%;max-width:100%}
+.gl .hist .li{font-size:.9rem}
+.rpi{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:right;font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:8px;cursor:pointer;min-height:56px}
+.rpi small{display:block;color:var(--muted)}
+.rptab{width:100%;border-collapse:collapse;font-size:.9rem}
+.rptab th,.rptab td{padding:7px 4px;border-top:1px solid var(--line);text-align:right}
+.rptab td.n{text-align:left;white-space:nowrap;direction:ltr}
+.up{color:var(--bad)}.dn2{color:var(--accent)}
 </style>
 </head>
 <body>
@@ -363,6 +377,12 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
     <p class="hint">היעד נשמר ומשותף בין המכשירים. המסך הראשי יציג כמה נשאר ממנו.</p>
   </section>
   <section class="card">
+    <h2>גיבוי</h2>
+    <p class="hint" style="margin-top:0">כל שבת בלילה נשמר גיבוי מלא של כל הנתונים (12 הגיבויים האחרונים נשמרים). מומלץ להוריד מדי פעם עותק למחשב או לענן שלכם, כדי שיהיה גיבוי גם מחוץ למערכת.</p>
+    <div id="bklist"></div>
+    <button class="pill" id="bknow" type="button">גיבוי עכשיו</button>
+  </section>
+  <section class="card">
     <h2>פריסת מסך הבית</h2>
     <p class="hint" style="margin-top:0">לכל אחד פריסות משלו, שנשמרות בחשבון שלו ועוברות איתו בין מכשירים. גוררים קוביה בידית כדי לשנות את הסדר, ומסמנים מה להציג. כל שינוי נשמר מיד בפריסה הפעילה.</p>
     <div class="lyrow"><label class="lbl" for="lysel" style="margin:0">הפריסה הפעילה</label><select id="lysel" class="txt"></select></div>
@@ -433,7 +453,35 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
   <div class="top" style="margin-bottom:16px"><h1>עוד דפים</h1><button class="pill" id="mrback">חזרה</button></div>
   <button class="nav" id="nvrc"><span><b>קבלות</b><small>צילום קבלה וזיהוי אוטומטי של הסכום והקטגוריה</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
   <button class="nav" id="nvpr"><span><b>השוואת מחירים</b><small>באיזו רשת עדיף לקנות כל מוצר, לפי הקבלות שצולמו</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+  <button class="nav" id="nvgl"><span><b>יעדי חיסכון</b><small>מטרות כמו חופשה או קרן חירום, עם הפקדות ופס התקדמות</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+  <button class="nav" id="nvrp"><span><b>דוחות חודשיים</b><small>סיכום אוטומטי של כל חודש: חיסכון, חריגות והשוואה לחודש הקודם</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
   <button class="nav" id="nvds"><span><b>מחשבון הנחה</b><small>הנחה של 18%, 20%, 25% או 30% על מחיר</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+</div>
+
+<div id="v-gl" hidden>
+  <div class="top" style="margin-bottom:16px"><h1>יעדי חיסכון</h1><button class="pill" id="glback">חזרה</button></div>
+  <section class="card">
+    <div class="lh"><h2 style="margin:0">סך הכול נחסך ליעדים</h2></div>
+    <b id="gltot" class="big">₪0</b><small class="hint" id="gltotn"></small>
+  </section>
+  <div id="gllist"></div>
+  <section class="card">
+    <h2>יעד חדש</h2>
+    <label class="lbl" for="gln">שם היעד</label><input class="txt" id="gln" type="text" maxlength="40" autocomplete="off" placeholder="לדוגמה חופשה בקיץ" style="width:100%">
+    <label class="lbl" for="glt">כמה צריך לחסוך</label><div class="amt" style="margin:0"><span>₪</span><input id="glt" type="text" inputmode="decimal" autocomplete="off" placeholder="לדוגמה 8000"></div>
+    <label class="lbl" for="gld">עד מתי (לא חובה)</label><input class="txt" id="gld" type="date" style="width:100%">
+    <button class="btn main" id="gladd" type="button" style="width:100%;margin-top:12px">הוספת היעד</button>
+  </section>
+</div>
+
+<div id="v-rp" hidden>
+  <div class="top" style="margin-bottom:16px"><h1>דוחות חודשיים</h1><button class="pill" id="rpback">חזרה</button></div>
+  <section class="card">
+    <p class="hint" style="margin-top:0">בכל 1 בחודש בלילה נוצר אוטומטית דוח על החודש שהסתיים. אפשר גם להפיק עכשיו דוח ביניים על החודש הנוכחי.</p>
+    <button class="btn" id="rpnow" type="button" style="width:100%">הפקת דוח לחודש הנוכחי (עד היום)</button>
+  </section>
+  <div id="rplist"></div>
+  <div id="rpview" hidden></div>
 </div>
 
 <div id="v-rc" hidden>
@@ -561,6 +609,6 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 
 <div id="toast"><div><span id="msg"></span><button id="undo">ביטול</button></div></div>
 
-<script src="app.js?v=2cff00510f"></script>
+<script src="app.js?v=8cd5839d77"></script>
 </body>
 </html>

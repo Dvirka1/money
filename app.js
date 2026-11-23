@@ -349,6 +349,144 @@ document.addEventListener('visibilitychange',async()=>{
   if(s&&s!==pageSig){if(busyUI)flash('יש גרסה חדשה של האפליקציה. היא תיטען בפעם הבאה');else location.reload()}
 });
 
+/* ---------- יעדי חיסכון ---------- */
+let goals=[],gmoves=[];
+async function loadGoals(){
+  const [g,m]=await Promise.all([sb.from('goals').select('*').eq('del',false).order('created_at'),sb.from('goal_moves').select('*').order('t',{ascending:false})]);
+  if(g.error||m.error){$('gllist').innerHTML='<p class="hint">לא ניתן לטעון את היעדים. בדקו חיבור.</p>';return}
+  goals=g.data;gmoves=m.data.map(x=>({...x,a:Number(x.a),t:Number(x.t)}));renderGoals();
+}
+const gSaved=id=>gmoves.filter(x=>x.goal_id===id).reduce((s,x)=>s+x.a,0);
+let gOpen=null;
+function renderGoals(){
+  const tot=goals.reduce((s,g)=>s+gSaved(g.id),0),tt=goals.reduce((s,g)=>s+Number(g.target),0);
+  $('gltot').innerHTML=sMoney(tot);$('gltotn').textContent=goals.length?`מתוך ${money(tt)} ב-${goals.length} ${goals.length===1?'יעד':'יעדים'}`:'';
+  const now=new Date();
+  $('gllist').innerHTML=goals.map(g=>{
+    const t=Number(g.target),s=gSaved(g.id),p=Math.max(0,Math.min(1,s/t)),left=t-s;
+    let due='';
+    if(g.due){const d=new Date(g.due+'T00:00'),mo=(d.getFullYear()-now.getFullYear())*12+d.getMonth()-now.getMonth();
+      due=left<=0?'':mo>0?` · עד ${d.toLocaleDateString('he-IL')}: צריך ${money(Math.ceil(left/mo))} בחודש`:` · התאריך (${d.toLocaleDateString('he-IL')}) כבר עבר`}
+    const hist=gOpen===g.id?gmoves.filter(x=>x.goal_id===g.id).map(x=>`<div class="li"><div><b>${sMoney(x.a)}</b>${x.note?' · '+esc(x.note):''}<br><small>${new Date(x.t).toLocaleDateString('he-IL')}${x.by_name?', '+esc(x.by_name):''}</small></div><button class="lb" data-gx="${x.id}">מחיקה</button></div>`).join('')||'<p class="hint">עדיין אין הפקדות.</p>':'';
+    return `<section class="card gl" data-g="${g.id}"><div class="tt"><b>${esc(g.name)}</b><span>${sMoney(s)} מתוך ${money(t)}</span></div>
+      <div class="bar"><i style="width:${p*100}%"></i></div>
+      <small class="hint">${left<=0?'היעד הושג! 🎉':`נשארו ${money(left)} (${Math.round(p*100)}%)`}${due}</small>
+      <div class="mv"><div class="amt"><span>₪</span><input data-ga type="text" inputmode="decimal" autocomplete="off" placeholder="סכום" aria-label="סכום להפקדה ל${esc(g.name)}"></div></div>
+      <div class="acts"><button class="btn" type="button" data-gdep>הפקדה</button><button class="pill" type="button" data-gwd>משיכה</button><button class="pill" type="button" data-gh aria-expanded="${gOpen===g.id}">${gOpen===g.id?'הסתרת התנועות':'התנועות'}</button><button class="pill" type="button" data-gdel>מחיקת היעד</button></div>
+      <div class="hist">${hist}</div></section>`;
+  }).join('')||'<p class="hint" style="text-align:center">עדיין אין יעדים. הוסיפו יעד ראשון למטה.</p>';
+}
+$('glt').addEventListener('input',()=>clean($('glt')));
+$('gladd').onclick=async()=>{
+  const name=$('gln').value.replace(/\s+/g,' ').trim(),t=parseFloat($('glt').value),due=$('gld').value||null;
+  if(!name){flash('תנו שם ליעד');$('gln').focus();return}
+  if(!(t>0)){flash('הקלידו כמה צריך לחסוך');$('glt').focus();return}
+  const {error}=await sb.from('goals').insert({name,target:t,due,created_by:user||meName||null});
+  if(error){flash('לא ניתן לשמור. בדקו חיבור');return}
+  $('gln').value='';$('glt').value='';$('gld').value='';flash(`היעד "${name}" נוסף`);loadGoals();
+};
+$('gllist').addEventListener('input',e=>{if(e.target.matches('[data-ga]'))clean(e.target)});
+$('gllist').addEventListener('click',async e=>{
+  const card=e.target.closest('.gl');if(!card) return;const id=card.dataset.g,g=goals.find(x=>x.id===id);if(!g) return;
+  const b=e.target.closest('button');if(!b) return;
+  if(b.dataset.gx!==undefined){const {error}=await sb.from('goal_moves').delete().eq('id',b.dataset.gx);if(error)flash('לא ניתן למחוק');else{flash('התנועה נמחקה');loadGoals()}return}
+  if(b.hasAttribute('data-gh')){gOpen=gOpen===id?null:id;renderGoals();return}
+  if(b.hasAttribute('data-gdel')){if(!confirmTwice(b,'לחצו שוב למחיקה'))return;const {error}=await sb.from('goals').update({del:true}).eq('id',id);if(error)flash('לא ניתן למחוק');else{flash(`היעד "${g.name}" נמחק`);loadGoals()}return}
+  const dep=b.hasAttribute('data-gdep'),wd=b.hasAttribute('data-gwd');if(!dep&&!wd) return;
+  const inp=card.querySelector('[data-ga]'),v=parseFloat(inp.value);
+  if(!(v>0)){flash('הקלידו סכום');inp.focus();return}
+  if(wd&&v>gSaved(id)+0.005){flash('אי אפשר למשוך יותר ממה שנחסך ביעד');return}
+  const {error}=await sb.from('goal_moves').insert({goal_id:id,a:dep?v:-v,t:Date.now(),by_name:user||meName||null});
+  if(error){flash('לא ניתן לשמור. בדקו חיבור');return}
+  flash(dep?`הופקדו ${money(v)} ל"${g.name}"`:`נמשכו ${money(v)} מ"${g.name}"`);loadGoals();
+});
+
+/* ---------- דוחות חודשיים ---------- */
+let reports=[];
+const mKey=(y,m)=>y+'-'+pad(m+1),mLabel=k=>{const [y,m]=k.split('-').map(Number);return monthName(y,m-1)};
+async function loadReports(){
+  let q=await sb.from('reports').select('month,data,created_at').order('month',{ascending:false});
+  if(q.error){$('rplist').innerHTML='<p class="hint">לא ניתן לטעון דוחות. בדקו חיבור.</p>';return}
+  /* חודש שהסתיים ועדיין אין לו דוח (למשל לפני שהדוח האוטומטי רץ) נוצר עכשיו */
+  const n=new Date();
+  const prevKey=n.getMonth()===0?(n.getFullYear()-1)+'-12':mKey(n.getFullYear(),n.getMonth()-1);
+  const have=new Set(q.data.map(r=>r.month));
+  if(!have.has(prevKey)&&allTx.some(x=>{const d=new Date(x.t);return mKey(d.getFullYear(),d.getMonth())===prevKey})){await sb.rpc('build_report',{m:prevKey});q=await sb.from('reports').select('month,data,created_at').order('month',{ascending:false})}
+  reports=q.data||[];renderReports();
+}
+function renderReports(){
+  $('rplist').innerHTML=reports.map(r=>{const d=r.data,sv=d.income-d.expense;return `<button class="rpi" type="button" data-m="${esc(r.month)}"><span><b>${mLabel(r.month)}</b>${d.partial?' <small style="display:inline">(ביניים)</small>':''}<small>הוצאות ${money(Number(d.expense))} · הכנסות ${money(Number(d.income))}</small></span><b class="${sv<0?'neg':''}">${sMoney(sv)}</b></button>`}).join('')||'<p class="hint" style="text-align:center">עדיין אין דוחות. הדוח הראשון ייווצר בתחילת החודש הבא, או בלחיצה על הכפתור למעלה.</p>';
+}
+$('rpnow').onclick=async()=>{
+  const n=new Date(),k=mKey(n.getFullYear(),n.getMonth());
+  $('rpnow').disabled=true;const {error}=await sb.rpc('build_report',{m:k});$('rpnow').disabled=false;
+  if(error){flash('לא ניתן להפיק דוח. בדקו חיבור');return}
+  await loadReports();rpOpen(k);
+};
+$('rplist').addEventListener('click',e=>{const b=e.target.closest('.rpi');if(b)rpOpen(b.dataset.m)});
+function rpClose(){$('rpview').hidden=true;$('rplist').hidden=false;$('rpnow').closest('section').hidden=false;scrollTo(0,0)}
+function rpOpen(k){
+  const r=reports.find(x=>x.month===k);if(!r) return;
+  const d=r.data,num=v=>Number(v)||0,inc=num(d.income),exp=num(d.expense),sv=inc-exp,pe=num(d.prev_expense),pi=num(d.prev_income),tg=num(d.target);
+  const ch=(a,b)=>b>0?Math.round((a-b)/b*100):null,arrow=(a,b,good)=>{const c=ch(a,b);if(c===null)return '';const up=c>0;return `<small class="${(up===good)?'dn2':'up'}">${up?'▲':'▼'} ${Math.abs(c)}%</small>`};
+  const cats=(d.cats||[]).filter(c=>num(c.a)>0||num(c.prev)>0);
+  const over=cats.filter(c=>num(c.target)>0&&num(c.a)>num(c.target));
+  const tips=[];
+  if(sv>0&&inc>0) tips.push(`נחסכו ${Math.round(sv/inc*100)}% מההכנסות.`);
+  if(sv<0) tips.push(`ההוצאות היו גבוהות מההכנסות ב-${money(-sv)}.`);
+  if(tg>0) tips.push(exp<=tg?`נשארתם ${money(tg-exp)} מתחת לתקציב.`:`חריגה של ${money(exp-tg)} מהתקציב.`);
+  over.forEach(c=>tips.push(`חריגה ביעד של ${c.c}: ${money(num(c.a))} מתוך ${money(num(c.target))}.`));
+  const jump=cats.filter(c=>num(c.prev)>0&&num(c.a)>num(c.prev)*1.25&&num(c.a)-num(c.prev)>100).sort((a,b)=>(num(b.a)-num(b.prev))-(num(a.a)-num(a.prev)))[0];
+  if(jump) tips.push(`העלייה הגדולה ביותר: ${jump.c}, ${money(num(jump.a)-num(jump.prev))} יותר מהחודש הקודם.`);
+  const by=Object.entries(d.by||{}).map(([n,c])=>`${esc(n)}: ${c}`).join(' · ');
+  $('rpview').innerHTML=`<section class="card"><div class="lh"><h2 style="margin:0">${mLabel(k)}${d.partial?' (ביניים)':''}</h2><button class="pill sm" id="rpx" type="button">לכל הדוחות</button></div>
+    <div class="two"><div><small>הכנסות</small><b>${money(inc)}</b>${arrow(inc,pi,true)}</div><div><small>הוצאות</small><b>${money(exp)}</b>${arrow(exp,pe,false)}</div></div>
+    <div class="two"><div><small>נחסך</small><b class="${sv<0?'neg':''}">${sMoney(sv)}</b><small>${inc>0?Math.round(sv/inc*100)+'% מההכנסות':''}</small></div><div><small>תקציב</small><b>${tg>0?money(tg):'—'}</b><small class="${tg>0&&exp>tg?'neg':''}">${tg>0?(exp<=tg?'נשארו '+money(tg-exp):'חריגה '+money(exp-tg)):''}</small></div></div>
+    ${tips.length?`<h3 class="svh">בקצרה</h3><ul class="hint" style="padding-inline-start:18px;margin:6px 0">${tips.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}
+  </section>
+  <section class="card"><h2>הוצאות לפי קטגוריה</h2><table class="rptab"><thead><tr><th>קטגוריה</th><th class="n">החודש</th><th class="n">חודש קודם</th></tr></thead><tbody>${cats.map(c=>`<tr><td>${esc(c.c)}${num(c.target)>0?`<br><small class="${num(c.a)>num(c.target)?'neg':'hint'}">יעד ${money(num(c.target))}</small>`:''}</td><td class="n">${money(num(c.a))} ${arrow(num(c.a),num(c.prev),false)}</td><td class="n">${money(num(c.prev))}</td></tr>`).join('')||'<tr><td colspan="3" class="hint">אין הוצאות</td></tr>'}</tbody></table></section>
+  <section class="card"><h2>הכנסות</h2>${(d.incomes||[]).map(x=>`<div class="srow"><span>${esc(x.c)}</span><b>${money(num(x.a))}</b></div>`).join('')||'<p class="hint">אין הכנסות</p>'}</section>
+  <section class="card"><h2>5 ההוצאות הגדולות</h2>${(d.top||[]).map(x=>`<div class="srow"><span>${esc(x.c)}${x.note?' · '+esc(String(x.note).slice(0,40)):''}<br><small class="hint">${new Date(Number(x.t)).toLocaleDateString('he-IL')}</small></span><b>${money(num(x.a))}</b></div>`).join('')||'<p class="hint">אין</p>'}</section>
+  <section class="card"><h2>עוד</h2>
+    <div class="srow"><span>הוצאות עבור אנשים</span><b>${money(num(d.people&&d.people.out))}</b></div>
+    <div class="srow"><span>החזרים שהתקבלו</span><b>${money(num(d.people&&d.people.in))}</b></div>
+    <div class="srow"><span>הופקד ליעדי חיסכון</span><b>${sMoney(num(d.goals))}</b></div>
+    <div class="srow"><span>תנועות שתועדו</span><b>${num(d.count)}</b></div>
+    ${by?`<p class="hint">${by}</p>`:''}
+    <button class="btn" id="rpxl" type="button" style="width:100%;margin-top:10px">הורדה כקובץ Excel</button>
+    <p class="hint">הופק ${new Date(r.created_at).toLocaleString('he-IL',{dateStyle:'short',timeStyle:'short'})}</p>
+  </section>`;
+  $('rplist').hidden=true;$('rpnow').closest('section').hidden=true;$('rpview').hidden=false;scrollTo(0,0);
+  $('rpx').onclick=rpClose;
+  $('rpxl').onclick=()=>{
+    const rows=[['דוח חודשי',mLabel(k)+(d.partial?' (ביניים)':'')],[],['הכנסות',inc],['הוצאות',exp],['נחסך',sv],['תקציב',tg||''],[],['קטגוריה','החודש','חודש קודם','יעד'],...cats.map(c=>[c.c,num(c.a),num(c.prev),num(c.target)||'']),[],['הכנסות לפי מקור'],...(d.incomes||[]).map(x=>[x.c,num(x.a)])];
+    const ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();wb.Workbook={Views:[{RTL:true}]};XLSX.utils.book_append_sheet(wb,ws,'דוח');
+    dlBlob(new Blob([XLSX.write(wb,{type:'array',bookType:'xlsx'})],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`report-${k}.xlsx`);
+  };
+}
+function dlBlob(blob,name){const url=URL.createObjectURL(blob),l=document.createElement('a');l.href=url;l.download=name;document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(url),4000)}
+
+/* ---------- גיבויים ---------- */
+async function loadBackups(){
+  const {data,error}=await sb.rpc('backup_list');
+  if(error){$('bklist').innerHTML='<p class="hint">לא ניתן לטעון את רשימת הגיבויים.</p>';return}
+  $('bklist').innerHTML=(data||[]).slice(0,6).map(b=>`<div class="li"><div><b>${new Date(b.taken_at).toLocaleString('he-IL',{dateStyle:'medium',timeStyle:'short'})}</b><br><small>${Math.max(1,Math.round(b.bytes/1024))} KB</small></div><div style="display:flex;gap:6px"><button class="lb" data-bk="${b.id}" data-f="xlsx">Excel</button><button class="lb" data-bk="${b.id}" data-f="json">JSON</button></div></div>`).join('')||'<p class="hint">עדיין אין גיבויים. הראשון ייווצר בשבת הקרובה, או בלחיצה על "גיבוי עכשיו".</p>';
+}
+$('bknow').onclick=async()=>{$('bknow').disabled=true;const {error}=await sb.rpc('take_backup');$('bknow').disabled=false;if(error){flash('הגיבוי נכשל. בדקו חיבור');return}flash('נשמר גיבוי');loadBackups()};
+$('bklist').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-bk]');if(!b) return;
+  const {data,error}=await sb.rpc('backup_get',{bid:Number(b.dataset.bk)});
+  if(error||!data){flash('לא ניתן להוריד את הגיבוי');return}
+  const day=new Date().toISOString().slice(0,10);
+  if(b.dataset.f==='json'){dlBlob(new Blob([JSON.stringify(data,null,1)],{type:'application/json'}),`budget-backup-${day}.json`);return}
+  const wb=XLSX.utils.book_new();wb.Workbook={Views:[{RTL:true}]};
+  Object.entries(data).forEach(([name,rows])=>{
+    const flat=(rows||[]).map(r=>Object.fromEntries(Object.entries(r).map(([k,v])=>[k,v!==null&&typeof v==='object'?JSON.stringify(v):v])));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(flat.length?flat:[{}]),name.slice(0,31));
+  });
+  dlBlob(new Blob([XLSX.write(wb,{type:'array',bookType:'xlsx'})],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`budget-backup-${day}.xlsx`);
+});
+
 /* ---------- חיסכון: כמה נשאר מההכנסות, כמה נשאר מהתקציב, ומה נצבר לאורך החודשים ---------- */
 /* סכום עם סימן מינוס במקום הנכון גם בטקסט מימין לשמאל */
 const sMoney=n=>`<bdi dir="ltr">${n<0?'−':''}${money(Math.abs(n))}</bdi>`;
@@ -503,14 +641,17 @@ $('ct').addEventListener('keydown',e=>{const el=e.target.closest('[data-cat]');i
 addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('cv').hidden&&$('ed').hidden&&$('rv').hidden&&$('zv').hidden&&$('sc').hidden){closeCat();return}if(!$('zv').hidden)zvClose();else if(!$('sc').hidden)$('scx').click();else if(!$('rv').hidden)closeRv();else if(!$('ed').hidden)closeEdit();else if(!$('ap').hidden)closeAp()}});
 
 /* ---------- settings ---------- */
-const VIEWS={settings:'v-set',more:'v-more',receipts:'v-rc',discount:'v-disc',prices:'v-pr'};
+const VIEWS={settings:'v-set',more:'v-more',receipts:'v-rc',discount:'v-disc',prices:'v-pr',goals:'v-gl',reports:'v-rp'};
 function show(){
   const cur=VIEWS[location.hash.slice(1)]||'v-home';
   $('v-login').hidden=authed||mfaNeed; $('v-mfa').hidden=!mfaNeed;
-  ['v-home','v-set','v-more','v-rc','v-disc','v-pr'].forEach(id=>{$(id).hidden=!authed||id!==cur});
+  ['v-home','v-set','v-more','v-rc','v-disc','v-pr','v-gl','v-rp'].forEach(id=>{$(id).hidden=!authed||id!==cur});
   window.scrollTo(0,0);
   if(cur==='v-rc'&&authed){loadReceipts();loadItems()}
   if(cur==='v-pr'&&authed) renderPrices();
+  if(cur==='v-gl'&&authed) loadGoals();
+  if(cur==='v-rp'&&authed) loadReports();
+  if(cur==='v-set'&&authed) loadBackups();
   if(cur!=='v-rc'&&tw&&!rcBusy){tw.terminate();tw=null} /* משחרר זיכרון של מנוע הקריאה */
 }
 $('gear').onclick=()=>{location.hash='settings'};
@@ -520,6 +661,10 @@ $('mrback').onclick=()=>{location.hash='home'};
 $('nvrc').onclick=()=>{location.hash='receipts'};
 $('nvds').onclick=()=>{location.hash='discount'};
 $('nvpr').onclick=()=>{location.hash='prices'};
+$('nvgl').onclick=()=>{location.hash='goals'};
+$('nvrp').onclick=()=>{location.hash='reports'};
+$('glback').onclick=()=>{location.hash='more'};
+$('rpback').onclick=()=>{if(!$('rpview').hidden){rpClose();return}location.hash='more'};
 $('prback').onclick=()=>{location.hash='more'};
 $('rcback').onclick=()=>{location.hash='more'};
 $('dsback').onclick=()=>{location.hash='more'};
