@@ -364,12 +364,13 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
   </section>
   <section class="card">
     <h2>פריסת מסך הבית</h2>
-    <p class="hint" style="margin-top:0">לכל אחד פריסות משלו, שנשמרות בחשבון שלו ועוברות איתו בין מכשירים. גוררים קוביה בידית כדי לשנות את הסדר, ומסמנים מה להציג. שינוי בפריסה הרגילה יוצר ממנה פריסה אישית, כך שתמיד אפשר לחזור לרגיל.</p>
+    <p class="hint" style="margin-top:0">לכל אחד פריסות משלו, שנשמרות בחשבון שלו ועוברות איתו בין מכשירים. גוררים קוביה בידית כדי לשנות את הסדר, ומסמנים מה להציג. כל שינוי נשמר מיד בפריסה הפעילה.</p>
     <div class="lyrow"><label class="lbl" for="lysel" style="margin:0">הפריסה הפעילה</label><select id="lysel" class="txt"></select></div>
-    <div class="lyrow" style="margin-top:8px"><button class="pill" id="lynew" type="button">שמירה כפריסה חדשה</button><button class="pill" id="lydel" type="button" hidden>מחיקת הפריסה</button></div>
+    <div class="lyrow" style="margin-top:8px"><button class="pill" id="lyren" type="button">שינוי שם</button><button class="pill" id="lynew" type="button">פריסה חדשה (עותק)</button><button class="pill" id="lydel" type="button" hidden>מחיקת הפריסה</button></div>
     <div id="lyform" hidden style="display:flex;gap:8px;margin-top:8px"><input class="txt" id="lyname" type="text" maxlength="30" autocomplete="off" placeholder="שם הפריסה, לדוגמה סוף חודש" aria-label="שם הפריסה החדשה" style="flex:1;min-width:0"><button class="btn" id="lysave" type="button">שמירה</button></div>
+    <div id="lyrf" hidden style="display:flex;gap:8px;margin-top:8px"><input class="txt" id="lyrn" type="text" maxlength="30" autocomplete="off" aria-label="שם חדש לפריסה" style="flex:1;min-width:0"><button class="btn" id="lyrsave" type="button">שמירה</button></div>
     <ol id="lyl" class="lyl" style="margin-top:12px"></ol>
-    <button class="pill" id="lyreset" type="button">חזרה לפריסה הרגילה</button>
+    <button class="pill" id="lyreset" type="button">איפוס הפריסה לסדר ברירת המחדל</button>
   </section>
   <section class="card">
     <h2>אימות דו-שלבי</h2>
@@ -560,6 +561,6 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 
 <div id="toast"><div><span id="msg"></span><button id="undo">ביטול</button></div></div>
 
-<script src="app.js?v=46c2c17153"></script>
+<script src="app.js?v=2cff00510f"></script>
 </body>
 </html>

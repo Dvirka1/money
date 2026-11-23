@@ -2314,17 +2314,16 @@ let lys={active:LBASE,list:[newLy(LBASE)]};
 const curLy=()=>lys.list.find(x=>x.n===lys.active)||lys.list[0];
 function normLys(v,old){
   /* גרסה קודמת שמרה רק סדר אחד */
-  if(!v&&Array.isArray(old)) v={active:'הפריסה שלי',list:[{n:'הפריסה שלי',o:old,h:[]}]};
+  if(!v&&Array.isArray(old)) v={active:'הפריסה שלי',list:[{n:LBASE,o:LDEF,h:[]},{n:'הפריסה שלי',o:old,h:[]}]};
   const list=(v&&Array.isArray(v.list)?v.list:[]).filter(x=>x&&x.n).map(x=>newLy(x.n,x.o,x.h)).filter((x,i,a)=>a.findIndex(y=>y.n===x.n)===i).slice(0,12);
-  /* הפריסה הרגילה תמיד בסדר ברירת המחדל ומציגה הכול */
-  const bi=list.findIndex(x=>x.n===LBASE);if(bi>=0)list.splice(bi,1);list.unshift(newLy(LBASE));
-  return {active:list.some(x=>x.n===(v&&v.active))?v.active:LBASE,list};
+  if(!list.length) list.push(newLy(LBASE));
+  return {active:list.some(x=>x.n===(v&&v.active))?v.active:list[0].n,list};
 }
 function applyLayout(){
   const L=curLy(),home=$('v-home');
   L.o.forEach((k,i)=>{const el=home.querySelector(`:scope>section[data-k="${k}"]`);if(el){el.style.order=i;el.classList.toggle('lyoff',L.h.includes(k))}});
   $('lysel').innerHTML=lys.list.map(x=>`<option${x.n===L.n?' selected':''}>${esc(x.n)}</option>`).join('');
-  $('lydel').hidden=L.n===LBASE;
+  $('lydel').hidden=lys.list.length<2;
   $('lyl').innerHTML=L.o.map(k=>`<li data-k="${k}"${L.h.includes(k)?' class="off"':''}><span class="grip" tabindex="0" role="button" aria-label="גרירה של ${esc(LNAME[k])}. אפשר גם בחצים במקלדת" aria-roledescription="פריט שאפשר לגרור"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></svg></span><span class="ln">${esc(LNAME[k])}</span><label class="lyv"><input type="checkbox"${L.h.includes(k)?'':' checked'} aria-label="להציג את ${esc(LNAME[k])}"><span>מוצג</span></label></li>`).join('');
 }
 function setLayoutFromUser(u){
@@ -2336,12 +2335,8 @@ function saveLayout(){
   lset('budget-layouts',lys);
   clearTimeout(lyT);lyT=setTimeout(async()=>{if(sb&&authed){const {error}=await sb.auth.updateUser({data:{layouts:lys}});if(error)flash('הפריסה נשמרה רק במכשיר הזה')}},400);
 }
-/* שינוי בפריסה הרגילה יוצר ממנה עותק אישי, כדי שתמיד אפשר יהיה לחזור לרגיל */
-function lyEditable(){
-  const L=curLy();if(L.n!==LBASE) return L;
-  let n='הפריסה שלי',i=2;while(lys.list.some(x=>x.n===n))n='הפריסה שלי '+(i++);
-  const c=newLy(n,L.o.slice(),L.h.slice());lys.list.push(c);lys.active=n;flash(`נוצרה פריסה אישית: "${n}". אפשר לחזור לרגיל בכל רגע`);return c;
-}
+/* כל פריסה, כולל הרגילה, נערכת במקום */
+const lyEditable=()=>curLy();
 const lyOrderFromDom=()=>[...$('lyl').children].map(li=>li.dataset.k);
 /* גרירה: מחזיקים את הידית ומזיזים. הרשימה מתעדכנת תוך כדי, והשמירה קורית רק כשעוזבים */
 let lyDrag=null;
@@ -2397,11 +2392,20 @@ $('lysave').onclick=()=>{
 };
 $('lyname').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('lysave').click()}});
 $('lydel').onclick=()=>{
-  const L=curLy();if(L.n===LBASE) return;
+  const L=curLy();if(lys.list.length<2) return;
   if(!confirmTwice($('lydel'),'לחצו שוב למחיקה')) return;
-  lys.list=lys.list.filter(x=>x!==L);lys.active=LBASE;applyLayout();saveLayout();flash(`הפריסה "${L.n}" נמחקה`);
+  lys.list=lys.list.filter(x=>x!==L);lys.active=lys.list[0].n;applyLayout();saveLayout();flash(`הפריסה "${L.n}" נמחקה`);
 };
-$('lyreset').onclick=()=>{lys.active=LBASE;applyLayout();saveLayout();flash('הפריסה הרגילה הופעלה. הפריסות ששמרתם נשארו ברשימה')};
+$('lyreset').onclick=()=>{const L=curLy();L.o=LDEF.slice();L.h=[];applyLayout();saveLayout();flash(`הפריסה "${L.n}" חזרה לסדר ברירת המחדל`)};
+/* שינוי שם לפריסה קיימת */
+$('lyren').onclick=()=>{const f=$('lyrf');f.hidden=!f.hidden;if(!f.hidden){$('lyrn').value=curLy().n;$('lyrn').focus();$('lyrn').select()}};
+$('lyrsave').onclick=()=>{
+  const L=curLy(),n=$('lyrn').value.replace(/\s+/g,' ').trim().slice(0,30);
+  if(!n){$('lyrn').focus();return}
+  if(n!==L.n&&lys.list.some(x=>x.n===n)){flash('כבר יש פריסה בשם הזה');return}
+  L.n=n;lys.active=n;$('lyrf').hidden=true;applyLayout();saveLayout();flash('השם עודכן');
+};
+$('lyrn').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('lyrsave').click()}});
 
 /* הפעלה וביטול של אימות דו-שלבי מתוך ההגדרות */
 let mfaPending=null;
