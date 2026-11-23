@@ -283,7 +283,15 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 <body>
 <main>
 <div id="v-login" hidden><section class="card"><h1 style="margin-bottom:14px">ניהול תקציב</h1>
-<form id="lf"><label class="lbl" for="em">שם משתמש</label><input id="em" class="txt" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" dir="ltr" required><label class="lbl" for="pw">סיסמה</label><input id="pw" class="txt" type="password" autocomplete="current-password" dir="ltr" required><button class="btn main" id="lbtn" type="submit">כניסה</button><p class="neg" id="lerr" role="alert"></p></form></section></div>
+<form id="lf"><label class="lbl" for="em">שם משתמש</label><input id="em" class="txt" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" dir="ltr" required><label class="lbl" for="pw">סיסמה</label><input id="pw" class="txt" type="password" autocomplete="current-password" dir="ltr" required><button class="btn main" id="lbtn" type="submit">כניסה</button><p class="neg" id="lerr" role="alert"></p></form>
+<form id="suf" hidden><p class="hint" style="margin-top:0">ההרשמה אפשרית רק עם הזמנה.</p>
+<label class="lbl" for="sucode">קוד הזמנה</label><input id="sucode" class="txt" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" dir="ltr" required>
+<label class="lbl" for="suname">השם שלך</label><input id="suname" class="txt" type="text" maxlength="30" autocomplete="given-name" required>
+<label class="lbl" for="suemail">מייל</label><input id="suemail" class="txt" type="email" autocomplete="email" dir="ltr" required>
+<label class="lbl" for="supw">סיסמה (10 תווים לפחות)</label><input id="supw" class="txt" type="password" autocomplete="new-password" minlength="10" dir="ltr" required>
+<label class="lbl" for="supw2">הסיסמה שוב</label><input id="supw2" class="txt" type="password" autocomplete="new-password" dir="ltr" required>
+<button class="btn main" id="subtn" type="submit">הרשמה</button><p class="neg" id="suerr" role="alert"></p></form>
+<button class="pill" id="lmode" type="button" style="margin-top:10px">יש לי הזמנה</button></section></div>
 <div id="v-mfa" hidden><section class="card"><h1 style="margin-bottom:8px">אימות דו-שלבי</h1>
 <p class="hint">הקלידו את הקוד בן 6 הספרות מאפליקציית האימות בטלפון.</p>
 <form id="mf"><input id="mcode" class="txt" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" dir="ltr" aria-label="קוד אימות" required style="font-size:1.4rem;letter-spacing:.3em;text-align:center"><button class="btn main" id="mbtn" type="submit">אישור</button><p class="neg" id="merr" role="alert"></p></form>
@@ -377,6 +385,23 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
     <p class="hint">היעד נשמר ומשותף בין המכשירים. המסך הראשי יציג כמה נשאר ממנו.</p>
   </section>
   <section class="card">
+    <h2>משק הבית</h2>
+    <label class="lbl" for="hhname">שם משק הבית</label><input class="txt" id="hhname" type="text" maxlength="60" style="width:100%">
+    <div id="hhmem" style="margin-top:8px"></div>
+    <h3 class="svh">הזמנת בן או בת זוג</h3>
+    <p class="hint">קישור אישי לשימוש חד-פעמי, בתוקף לשבוע. מי שנרשם דרכו רואה ומתעד את אותם נתונים כמוך.</p>
+    <div style="display:flex;gap:8px"><input class="txt" id="hhnote" type="text" maxlength="60" placeholder="למי ההזמנה (לא חובה)" aria-label="למי ההזמנה" style="flex:1;min-width:0"><button class="btn" id="hhadd" type="button">יצירת קישור</button></div>
+    <div id="hhinv"></div>
+  </section>
+  <section class="card" id="admcard" hidden>
+    <h2>ניהול מערכת</h2>
+    <p class="hint" style="margin-top:0">רק לך. אפשר להזמין משק בית חדש ולראות אילו משקי בית קיימים. הנתונים, ההוצאות והקבלות של כל משק בית חסויים, וגם המנהל לא רואה אותם.</p>
+    <div style="display:flex;gap:8px"><input class="txt" id="admnote" type="text" maxlength="60" placeholder="למי ההזמנה, לדוגמה יוסי ורותם" aria-label="למי ההזמנה" style="flex:1;min-width:0"><button class="btn" id="admadd" type="button">הזמנת משק בית</button></div>
+    <div id="adminv"></div>
+    <h3 class="svh">משקי בית במערכת</h3>
+    <div id="admhh"></div>
+  </section>
+  <section class="card">
     <h2>גיבוי</h2>
     <p class="hint" style="margin-top:0">כל שבת בלילה נשמר גיבוי מלא של כל הנתונים (12 הגיבויים האחרונים נשמרים). מומלץ להוריד מדי פעם עותק למחשב או לענן שלכם, כדי שיהיה גיבוי גם מחוץ למערכת.</p>
     <div id="bklist"></div>
@@ -440,6 +465,11 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
     <h2>צבע רקע</h2>
     <div class="sw" id="sw"></div>
     <p class="hint">הצבע נשמר במכשיר הזה בלבד.</p>
+  </section>
+  <section class="card">
+    <h2>מחיקת החשבון</h2>
+    <p class="hint" style="margin-top:0">מוחקת את החשבון שלך. אם את/ה החבר/ה האחרון/ה במשק הבית, נמחקים גם כל הנתונים והקבלות, לתמיד.</p>
+    <button class="pill" id="delme" type="button" style="color:var(--bad);border-color:var(--bad)">מחיקת החשבון שלי</button>
   </section>
   <section class="card" id="xcard">
     <h2>דוח חודשי לאקסל</h2>
@@ -609,6 +639,6 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 
 <div id="toast"><div><span id="msg"></span><button id="undo">ביטול</button></div></div>
 
-<script src="app.js?v=8cd5839d77"></script>
+<script src="app.js?v=d62ad7ae38"></script>
 </body>
 </html>
