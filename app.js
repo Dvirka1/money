@@ -1078,6 +1078,17 @@ function storeOf(merchant){
 /* --- שם מוצר להשוואה: מילים, גדלים (גרם/מ"ל), אחוזים --- */
 const FINALS={'ך':'כ','ם':'מ','ן':'נ','ף':'פ','ץ':'צ'};
 const NAME_STOP=new Set(['של','עם','יח','יחידה','יחידות','מארז','אריזה','חדש','מבצע']);
+/* יחיד ורבים כאותו מוצר: בננה/בננות, תפוח/תפוחים, עגבנייה/עגבניות, ביצה/ביצים, שקית/שקיות.
+   מקבל מילה אחרי החלפת אותיות סופיות (ם←מ), ומשאיר לפחות שתי אותיות (מים נשאר מים) */
+function heStem(w){
+  let s=w;
+  if(s.length>=4&&/ימ$/.test(s)) s=s.slice(0,-2);
+  else if(s.length>=4&&/ות$/.test(s)) s=s.slice(0,-2);
+  else if(s.length>=3&&/ה$/.test(s)) s=s.slice(0,-1);
+  s=s.replace(/יי/g,'י');
+  if(s.length>=4&&/ית$/.test(s)) s=s.slice(0,-1);
+  return s;
+}
 function nameInfo(name){
   let s=String(name||'').toLowerCase().replace(BIDI,'').replace(/[״”“"׳’‘´`']/g,'').replace(/[ךםןףץ]/g,c=>FINALS[c]);
   s=s.replace(/(\d),(\d)/g,'$1.$2');
@@ -1096,6 +1107,7 @@ function nameInfo(name){
   toks.forEach(t=>{
     if(/^\d+$/.test(t)){if(t.length<=3) words.push(t);return}
     if(t.length<2||NAME_STOP.has(t)) return;
+    if(/[א-ת]/.test(t)) t=heStem(t);
     if(/^[a-z]{2,3}$/.test(t)&&/[א-ת]/.test(s)) return; /* שאריות קריאה כמו nv או sown בתוך שם בעברית */
     words.push(t);
   });
