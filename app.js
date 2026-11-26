@@ -186,7 +186,7 @@ function render(){
   $('ctcard').hidden=!items.length;
   $('ct').innerHTML=items.map(x=>`<div class="tg" data-cat="${esc(x.c)}" role="button" tabindex="0"><div class="tt"><span>${esc(x.c)}</span><span>${money(x.v)} מתוך ${money(x.t)}</span></div><div class="bar sm"><i class="${x.v>x.t?'over':''}" style="width:${Math.min(100,x.p*100)}%"></i></div><small class="${x.v>x.t?'neg':''}">${x.v>x.t?'חריגה של '+money(x.v-x.t):'נשארו '+money(x.t-x.v)}</small></div>`).join('');
 
-  renderRem(); renderLog(tx); renderCat(); renderPpl(); renderSav(exp,inc);
+  renderRem(); renderLog(tx); renderCat(); renderPpl(); renderSav(exp,inc); loadPending();
 
   const used=CATS.map((c,i)=>({c,i,v:sums[i]})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
   const pie=$('pie'),lg=$('legend');
@@ -349,6 +349,100 @@ document.addEventListener('visibilitychange',async()=>{
   /* לא מרעננים באמצע הקלדה או כשחלון פתוח */
   const busyUI=$('amt').value||$('note').value||$('pamt').value||!$('ed').hidden||!$('sc').hidden||!$('rcform').hidden;
   if(s&&s!==pageSig){if(busyUI)flash('יש גרסה חדשה של האפליקציה. היא תיטען בפעם הבאה');else location.reload()}
+});
+
+/* ---------- תשלומים מ-SMS שממתינים לקטגוריה ---------- */
+/* פענוח הודעת עסקה של חברת אשראי או בנק: סכום ובית עסק */
+function parseSms(raw){
+  const t=String(raw||'').replace(/[‎‏‪-‮]/g,'').replace(/[״”“]/g,'"').replace(/\s+/g,' ');
+  const num=s=>parseFloat(String(s).replace(/,/g,''));
+  let a=null,m;
+  const pats=[/(?:בסך|סך|על סך|בסכום|סכום|סכום העסקה|amount)\s*:?\s*(?:של\s*)?(?:₪|ש"ח|ILS|NIS)?\s*([\d,]+(?:\.\d{1,2})?)/i,
+    /([\d,]+(?:\.\d{1,2})?)\s*(?:₪|ש"ח|שח|ILS|NIS)/i,/(?:₪|ILS|NIS)\s*([\d,]+(?:\.\d{1,2})?)/i];
+  for(const p of pats){m=p.exec(t);if(m&&num(m[1])>0){a=num(m[1]);break}}
+  let mer='';
+  m=/(?:בבית העסק|בבית עסק|בעסק|אצל|ב-|at)\s*:?\s*([^\d,.\n]{2,40}?)(?=\s*(?:בסך|על סך|בסכום|בתאריך|ב-?\d|ביום|ILS|NIS|₪|ש"ח|\d|[,.\n]|:\s|:$|$))/i.exec(t);
+  if(m) mer=m[1].trim();
+  if(!mer){m=/(?:ש"ח|₪|שח)\s*(?:ב|ב-)\s*([^\d,.\n]{2,40})/.exec(t);if(m)mer=m[1].trim()}
+  mer=mer.replace(/^(?:ה)?כרטיס.*$/,'').replace(/\s+(?:בכרטיס|כרטיס).*$/,'').trim();
+  return {a,mer};
+}
+let pending=[],pdLoading=false;const pdGone=new Set(); /* טופלו כאן: לא חוזרים גם אם טעינה ישנה עוד בדרך */
+async function loadPending(){
+  if(!sb||!authed||pdLoading) return;pdLoading=true;
+  try{const {data,error}=await sb.from('pending_tx').select('*').eq('done',false).order('t',{ascending:false}).limit(30);if(!error){pending=(data||[]).filter(p=>!pdGone.has(p.id));renderPending()}}
+  finally{pdLoading=false}
+}
+function renderPending(){
+  $('pdcard').hidden=!pending.length;
+  $('pdlist').innerHTML=pending.map(p=>{
+    const s=parseSms(p.raw),sug=s.mer?catGuessFor(s.mer):'';
+    const d=new Date(Number(p.t)),dup=s.a&&tx.some(x=>!x.del&&x.type==='e'&&Math.abs(x.a-s.a)<0.005&&Math.abs(x.t-p.t)<2*864e5);
+    const cats=[...new Set([sug,...topCats()].filter(Boolean))];
+    return `<div class="pd" data-p="${esc(p.id)}"><div class="pt"><b>${s.a?money2(s.a):'סכום לא זוהה'}</b><span>${esc(s.mer||'בית עסק לא זוהה')}</span></div>
+      <div class="raw">${esc(p.raw.slice(0,160))} · ${d.toLocaleDateString('he-IL')} ${pad(d.getHours())}:${pad(d.getMinutes())}${p.by_name?' · '+esc(p.by_name):''}</div>
+      ${dup?'<div class="warn">ייתכן שכבר נרשם: יש הוצאה באותו סכום ביומיים האחרונים</div>':''}
+      <div class="pc">${s.a?cats.slice(0,sug?7:6).map(c=>`<button type="button" data-pc="${esc(c)}"${c===sug?' class="sug"':''}>${esc(c)}</button>`).join('')+'<button type="button" data-pmore>עוד…</button>':'<button type="button" data-pedit>תיעוד ידני</button>'}<button type="button" data-pskip>התעלמות</button></div></div>`;
+  }).join('');
+}
+/* הקטגוריות שהכי הרבה משתמשים בהן בשלושת החודשים האחרונים, ואחריהן השאר */
+function topCats(){const since=Date.now()-90*864e5,n={};tx.forEach(x=>{if(!x.del&&x.type==='e'&&x.t>=since)n[x.c]=(n[x.c]||0)+1});return CATS.slice().sort((a,b)=>(n[b]||0)-(n[a]||0))}
+function catGuessFor(mer){const k=nm(mer);if(rules[k])return rules[k];const g=catGuess(mer);return g&&CATS.includes(g.c)?g.c:''}
+$('pdlist').addEventListener('click',async e=>{
+  const row=e.target.closest('.pd');if(!row) return;const p=pending.find(x=>x.id===row.dataset.p);if(!p) return;
+  const b=e.target.closest('button');if(!b) return;const s=parseSms(p.raw);
+  const done=async()=>{pdGone.add(p.id);pending=pending.filter(x=>x.id!==p.id);renderPending();const {error}=await sb.from('pending_tx').update({done:true}).eq('id',p.id);if(error){pdGone.delete(p.id);loadPending()}};
+  if(b.hasAttribute('data-pskip')){await done();flash('הוסר מהרשימה');return}
+  if(b.hasAttribute('data-pmore')||b.hasAttribute('data-pedit')){
+    if(s.a)$('amt').value=String(s.a);$('note').value=s.mer||'';syncEntry();await done();
+    $('amt').closest('section').scrollIntoView({behavior:'smooth',block:'start'});flash('הסכום הועבר לתיעוד. בחרו קטגוריה');return;
+  }
+  const c=b.dataset.pc;if(!c||!s.a) return;
+  if(!user){flash('בחרו קודם מי מתעד');return}
+  const o={type:'e',a:s.a,c,t:Number(p.t),note:s.mer||null};
+  if(await addTx(SPLIT_CATS.includes(c)?{parts:splitParts(o).parts}:o)){if(s.mer)saveRule(s.mer,c);await done();flash(`נרשם: ${money(s.a)} ב${c}`,true)}
+});
+if(sb) sb.channel('pending').on('postgres_changes',{event:'*',schema:'public',table:'pending_tx'},()=>loadPending()).subscribe();
+
+/* ---------- מפתחות לקיצורים באייפון ---------- */
+async function loadKeys(){
+  const {data,error}=await sb.from('shortcut_keys').select('id,name,created_at,last_used').order('created_at');
+  if(error){$('scklist').innerHTML='';return}
+  $('scklist').innerHTML=(data||[]).map(k=>`<div class="li"><div><b>${esc(k.name)}</b><br><small>נוצר ${new Date(k.created_at).toLocaleDateString('he-IL')}${k.last_used?' · שימוש אחרון '+new Date(k.last_used).toLocaleString('he-IL',{dateStyle:'short',timeStyle:'short'}):' · עוד לא בשימוש'}</small></div><button class="lb" data-kdel="${k.id}">ביטול</button></div>`).join('');
+  scGuide();
+}
+let scLastKey='';
+function scGuide(k){
+  if(k) scLastKey=k;
+  const url=SUPABASE_URL+'/rest/v1/rpc/',key=scLastKey||'<המפתח שלך>';
+  const hdr=`<li>בפעולה <b>קבלת תוכן של URL</b> (Get Contents of URL): שיטה <code>POST</code>, ובכותרות (Headers) מוסיפים <code>apikey</code> עם הערך <code>${esc(SUPABASE_KEY)}</code> ו-<code>Content-Type</code> עם <code>application/json</code>. גוף הבקשה (Request Body): JSON.</li>`;
+  $('scguide').innerHTML=`<h4>1. קליטת SMS מחברת האשראי</h4><ol>
+    <li>בקיצורים: <b>אוטומציה</b> ← <b>+</b> ← <b>הודעה</b>. בשדה "שולח" בוחרים את חברת האשראי (או "ההודעה מכילה" עם מילה כמו <code>עסקה</code>). בוחרים <b>הפעלה מיידית</b>.</li>
+    <li>פעולה: <b>קבלת תוכן של URL</b> עם הכתובת <code>${esc(url)}sc_capture</code>.</li>${hdr}
+    <li>בגוף: שדה <code>key</code> עם <code>${esc(key)}</code>, ושדה <code>sms</code> שמקבל את המשתנה <b>הודעה</b> (Shortcut Input ← Content).</li>
+    <li>פעולה נוספת: <b>הצגת התראה</b> עם הטקסט "נקלט תשלום, פתחו את האפליקציה לבחור קטגוריה".</li></ol>
+    <h4>2. תזכורת בערב</h4><ol>
+    <li>אוטומציה ← <b>שעה ביום</b> ← 21:00, כל יום, הפעלה מיידית.</li>
+    <li><b>קבלת תוכן של URL</b> עם <code>${esc(url)}sc_today</code>, אותן כותרות, ובגוף שדה <code>key</code>.</li>
+    <li><b>אם</b> התוצאה <b>שווה ל-</b> 0 ← <b>הצגת התראה</b>: "שילמתם היום משהו? זה הזמן לתעד".</li></ol>
+    <h4>3. רישום מהיר מ-Siri או מווידג'ט</h4><ol>
+    <li>קיצור חדש בשם "רשום הוצאה". <b>קבלת תוכן של URL</b> עם <code>${esc(url)}sc_cats</code> ובגוף <code>key</code>: מתקבלת רשימת הקטגוריות.</li>
+    <li><b>בחירה מרשימה</b> מתוצאת הפעולה הקודמת, ואחריה <b>בקשת קלט</b> מסוג מספר: "כמה?".</li>
+    <li><b>קבלת תוכן של URL</b> עם <code>${esc(url)}sc_add</code>, ובגוף: <code>key</code>, <code>a</code> (המספר), <code>c</code> (הקטגוריה שנבחרה). לא חובה: <code>note</code>.</li>
+    <li><b>הצגת התוצאה</b>. כדי להפעיל: "היי Siri, רשום הוצאה", או מוסיפים את הקיצור כווידג'ט למסך הבית או למסך הנעילה.</li></ol>`;
+}
+$('sckadd').onclick=async()=>{
+  const {data,error}=await sb.rpc('sc_new_key',{kname:$('sckname').value.trim()});
+  if(error){flash(/too many/.test(error.message)?'אפשר עד 5 מפתחות. בטלו אחד קודם':'לא ניתן ליצור מפתח');return}
+  $('sckval').textContent=data;$('sckshow').hidden=false;$('sckname').value='';scGuide(data);loadKeys();
+  $('scguide').closest('details').open=true;
+};
+$('sckcopy').onclick=async()=>{try{await navigator.clipboard.writeText($('sckval').textContent);flash('המפתח הועתק')}catch(e){flash('סמנו את המפתח והעתיקו ידנית')}};
+$('scklist').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-kdel]');if(!b) return;
+  if(!confirmTwice(b,'לבטל?')) return;
+  const {error}=await sb.from('shortcut_keys').delete().eq('id',b.dataset.kdel);
+  flash(error?'לא ניתן לבטל':'המפתח בוטל. קיצורים שמשתמשים בו יפסיקו לעבוד');$('sckshow').hidden=true;scLastKey='';loadKeys();
 });
 
 /* ---------- יעדי חיסכון ---------- */
@@ -653,7 +747,7 @@ function show(){
   if(cur==='v-pr'&&authed) renderPrices();
   if(cur==='v-gl'&&authed) loadGoals();
   if(cur==='v-rp'&&authed) loadReports();
-  if(cur==='v-set'&&authed) loadBackups();
+  if(cur==='v-set'&&authed){loadBackups();loadKeys()}
   if(cur!=='v-rc'&&tw&&!rcBusy){tw.terminate();tw=null} /* משחרר זיכרון של מנוע הקריאה */
 }
 $('gear').onclick=()=>{location.hash='settings'};
@@ -1991,6 +2085,51 @@ async function ocrReceipt(cv,alt){
   return p;
 }
 
+/* --- קריאה מדויקת בענן: הסריקה נשלחת לפונקציה בשרת שלנו, שמעבירה אותה ל-Gemini ומחזירה פריטים מסודרים.
+   המפתח של Gemini נמצא רק בשרת. אם השירות לא זמין (אין אינטרנט, אין מפתח, נגמרה המכסה היומית) עוברים לקריאה בתוך המכשיר --- */
+async function aiReceipt(cv){
+  if(!sb||!sb.functions) return null;
+  /* תמונה בגודל סביר: הצד הארוך עד 2200 פיקסלים */
+  const k=Math.min(1,2200/Math.max(cv.width,cv.height));let c=cv;
+  if(k<1){c=document.createElement('canvas');c.width=Math.round(cv.width*k);c.height=Math.round(cv.height*k);const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(cv,0,0,c.width,c.height)}
+  const image=c.toDataURL('image/jpeg',0.85).split(',')[1];if(c!==cv) freeCv(c);
+  const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),45000);
+  let r;
+  try{r=await sb.functions.invoke('receipt-ai',{body:{image,mime:'image/jpeg'},signal:ctl.signal})}finally{clearTimeout(to)}
+  if(r.error||!r.data||!r.data.data) return {err:r.error&&r.error.context&&r.error.context.status||'x'};
+  return aiToParsed(r.data.data,r.data.model);
+}
+function aiToParsed(d,model){
+  const num=v=>{const n=typeof v==='number'?v:parseFloat(String(v||'').replace(/[^\d.\-]/g,''));return isFinite(n)?Math.round(n*1000)/1000:null};
+  const r2=n=>Math.round(n*100)/100;
+  const items=[];
+  (Array.isArray(d.items)?d.items:[]).slice(0,150).forEach(x=>{
+    const name=String(x&&x.name||'').replace(/\s+/g,' ').trim().slice(0,80);
+    let price=num(x.price),off=Math.abs(num(x.discount)||0),qty=num(x.qty);
+    if(price==null||!name) return;
+    if(!(qty>0)||qty>999) qty=1;
+    if(price<0){items.push({name,qty:1,price:r2(price),disc:true});return}
+    if(off>0&&off<price) items.push({name,qty,price:r2(price-off),off:r2(off),unsure:!!x.unsure});
+    else items.push({name,qty,price:r2(price),unsure:!!x.unsure});
+  });
+  const sum=r2(items.reduce((s,x)=>s+x.price,0)),total=num(d.total);
+  const best=total>0?r2(total):sum>0?sum:null;
+  const ok=best!=null&&Math.abs(sum-best)<0.05;
+  let date=null;const m=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(String(d.date||''));
+  if(m){const y=+m[1],mo=+m[2],dd=+m[3],t=new Date(y,mo-1,dd),n=new Date();
+    if(t.getMonth()===mo-1&&t.getTime()<=n.getTime()+864e5&&t.getTime()>=new Date(n.getFullYear()-3,n.getMonth(),1).getTime()) date={y,m:mo,d:dd}}
+  let merchant=String(d.store||'').replace(/\s+/g,' ').trim().slice(0,40);
+  const chain=storeIn(merchant);if(chain&&chain.exact) merchant=chain.n;
+  /* הקטגוריה לפי בית העסק. שמות הפריטים משמשים רק לזיהוי קבלת מזון (אחרת "מנגו" היה מתפרש כרשת הבגדים) */
+  let guess=catGuess(merchant)||(chain?catGuess(chain.n):null);
+  if(!guess&&CATS.includes('מזון')){
+    const FOOD=/לחם|חלב|ביצ|גבינ|יוגורט|קוטג|עוף|בשר|דג|אורז|פסטה|קמח|סוכר|שמן|קפה|תה|ירק|פרי|עגבני|מלפפון|בצל|תפוח|תפוז|בננ|לימון|אבוקדו|חסה|גזר|פלפל|מנגו|ענב|אבטיח|שוקולד|חטיף|במבה|ביסלי|מיץ|שתיה|משקה|מים מינרליים|קפוא|שימור|טונה|חומוס|טחינה|רוטב|תבלין|מלח/;
+    const n=items.filter(x=>FOOD.test(x.name)).length;
+    if(n>=2&&n>=items.length*0.3) guess={c:'מזון',src:'dict',hit:'פריטי מזון'};
+  }
+  return {best,alts:ok||!(sum>0)||sum===best?[]:[sum],conf:best==null?'none':ok?'high':'mid',date,merchant,guess,items,ai:model||'ai'};
+}
+
 /* --- הזרימה במסך --- */
 let rc=null,rcSeq=0,rcSeq0=0,rcUrl=null,rcSrc=null;
 const todayStr=()=>{const n=new Date();return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate())};
@@ -2153,8 +2292,13 @@ async function rcScan(){
     rc={blob,guess:null,key:''};
     $('rcrescan').hidden=false;
     let p=null,failed=false;const t0=Date.now();
-    try{p=await ocrReceipt(sc.canvas,()=>scScan(s.img,s.quad,s.rot,{plain:true,cap:4.5e6}))}catch(e){failed=true}
-    const note=`סריקה ${sc.w}×${sc.h}, קריאה ${Math.max(1,Math.round((Date.now()-t0)/1000))} שניות`;
+    let ai=null;
+    if(navigator.onLine!==false){rcProg('קורא את הקבלה...',.3);try{ai=await aiReceipt(sc.canvas)}catch(e){ai=null}}
+    if(my!==rcSeq){freeCv(sc.canvas);return}
+    if(ai&&!ai.err&&(ai.items.length||ai.best)) p=ai;
+    else try{p=await ocrReceipt(sc.canvas,()=>scScan(s.img,s.quad,s.rot,{plain:true,cap:4.5e6}))}catch(e){failed=true}
+    const secs=Math.max(1,Math.round((Date.now()-t0)/1000));
+    const note=p&&p.ai?`נקראה בקריאה המדויקת, ${secs} שניות`:`סריקה ${sc.w}×${sc.h}, קריאה במכשיר ${secs} שניות`+(ai&&ai.err===429?' (נגמרה המכסה היומית לקריאה המדויקת)':'');
     freeCv(sc.canvas);
     if(my!==rcSeq) return;
     rcFill(p,failed); $('rcnote').textContent=note;
@@ -2453,7 +2597,7 @@ $('mf').addEventListener('submit',async e=>{
 });
 $('mout').onclick=()=>$('logout').click();
 /* ---------- פריסות מסך הבית: לכל משתמש פריסות משלו (סדר הקוביות ומה מוצג), נשמרות בחשבון שלו ---------- */
-const LAYOUT=[['hero','שעה וברכה'],['rem','תזכורות החודש'],['entry','תיעוד תנועה'],['month','סיכום החודש'],['savings','חיסכון ומה שנצבר'],['people','הוצאות עבור אנשים'],['targets','יעדים לפי קטגוריה'],['pie','חלוקה לפי קטגוריות'],['log','יומן תנועות']];
+const LAYOUT=[['hero','שעה וברכה'],['pending','תשלומים שממתינים'],['rem','תזכורות החודש'],['entry','תיעוד תנועה'],['month','סיכום החודש'],['savings','חיסכון ומה שנצבר'],['people','הוצאות עבור אנשים'],['targets','יעדים לפי קטגוריה'],['pie','חלוקה לפי קטגוריות'],['log','יומן תנועות']];
 const LDEF=LAYOUT.map(x=>x[0]),LNAME=Object.fromEntries(LAYOUT),LBASE='רגיל';
 function normOrder(v){const o=(Array.isArray(v)?v:[]).filter((k,i,a)=>LDEF.includes(k)&&a.indexOf(k)===i);return o.concat(LDEF.filter(k=>!o.includes(k)))}
 const newLy=(n,o,hd)=>({n:String(n).slice(0,30),o:normOrder(o),h:(Array.isArray(hd)?hd:[]).filter(k=>LDEF.includes(k))});
