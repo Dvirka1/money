@@ -2102,9 +2102,9 @@ async function ocrReceipt(cv,alt){
 async function aiReceipt(cv){
   if(!sb||!sb.functions) return null;
   /* תמונה בגודל סביר: הצד הארוך עד 2200 פיקסלים */
-  const k=Math.min(1,2200/Math.max(cv.width,cv.height));let c=cv;
+  const k=Math.min(1,2600/Math.max(cv.width,cv.height));let c=cv;
   if(k<1){c=document.createElement('canvas');c.width=Math.round(cv.width*k);c.height=Math.round(cv.height*k);const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(cv,0,0,c.width,c.height)}
-  const image=c.toDataURL('image/jpeg',0.85).split(',')[1];if(c!==cv) freeCv(c);
+  const image=c.toDataURL('image/jpeg',0.9).split(',')[1];if(c!==cv) freeCv(c);
   const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),45000);
   let r;
   try{r=await sb.functions.invoke('receipt-ai',{body:{image,mime:'image/jpeg'},signal:ctl.signal})}finally{clearTimeout(to)}
@@ -2305,12 +2305,18 @@ async function rcScan(){
     $('rcrescan').hidden=false;
     let p=null,failed=false;const t0=Date.now();
     let ai=null;
-    if(navigator.onLine!==false){rcProg('קורא את הקבלה...',.3);try{ai=await aiReceipt(sc.canvas)}catch(e){ai=null}}
+    if(navigator.onLine!==false){
+      rcProg('קורא את הקבלה...',.3);
+      /* למודל שולחים את הצילום החתוך והמיושר בצבע, בלי ההלבנה (היא עוזרת לקריאה במכשיר, אבל מוחקת פרטים) */
+      let pl=null;try{pl=scScan(s.img,s.quad,s.rot,{plain:true,cap:6e6})}catch(e){pl=null}
+      try{ai=await aiReceipt(pl&&!pl.blank?pl.canvas:sc.canvas)}catch(e){ai={err:'net'}}
+      if(pl) freeCv(pl.canvas);
+    }
     if(my!==rcSeq){freeCv(sc.canvas);return}
     if(ai&&!ai.err&&(ai.items.length||ai.best)) p=ai;
     else try{p=await ocrReceipt(sc.canvas,()=>scScan(s.img,s.quad,s.rot,{plain:true,cap:4.5e6}))}catch(e){failed=true}
     const secs=Math.max(1,Math.round((Date.now()-t0)/1000));
-    const note=p&&p.ai?`נקראה בקריאה המדויקת, ${secs} שניות`:`סריקה ${sc.w}×${sc.h}, קריאה במכשיר ${secs} שניות`+(ai&&ai.err===429?' (נגמרה המכסה היומית לקריאה המדויקת)':'');
+    const note=p&&p.ai?`נקראה בקריאה המדויקת, ${secs} שניות`:`סריקה ${sc.w}×${sc.h}, קריאה במכשיר ${secs} שניות`+(ai&&ai.err?(ai.err===429?' (נגמרה המכסה היומית לקריאה המדויקת)':` (הקריאה המדויקת לא הצליחה: ${ai.err})`):'');
     freeCv(sc.canvas);
     if(my!==rcSeq) return;
     rcFill(p,failed); $('rcnote').textContent=note;
