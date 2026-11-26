@@ -292,6 +292,19 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 .pd .pc button{min-height:44px;padding:6px 12px;border-radius:10px;border:1px solid var(--line);background:var(--chip);color:var(--ink);font:inherit;font-size:.88rem;cursor:pointer}
 .pd .pc button.sug{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .pd .warn{color:var(--bad);font-size:.82rem}
+.fgrid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.fgrid3 select{width:100%;min-width:0}
+.imr{display:grid;grid-template-columns:44px 1fr auto;gap:4px 8px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.imr input[type=checkbox],.rcdoc input{width:22px;height:22px;margin:11px;accent-color:var(--accent)}
+.imr .d{font-size:.8rem;color:var(--muted)}.imr b{overflow-wrap:anywhere}.imr .am{font-weight:600;white-space:nowrap}
+.imr select{grid-column:2/4;width:100%}.imr .why{grid-column:2/4;font-size:.8rem;color:var(--muted)}
+.imr.need select{border-color:var(--bad)}
+.rcdoc{display:flex;align-items:center;min-height:44px;font-size:.92rem;margin:2px 0 4px}
+.dcq{display:flex;gap:6px;margin-top:8px}.dcq .lb{min-height:44px}
+.dcph{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+.dci{padding:12px 0;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:space-between;align-items:center}
+.dci .m{min-width:0}.dci b{display:block;overflow-wrap:anywhere}.dci small{color:var(--muted)}
+.dci:first-child{border-top:0;padding-top:0}.dci .x{display:flex;gap:6px;flex-shrink:0}.dci .lb{min-height:44px}
+.dci .warn{color:var(--bad)}.dci .ok{color:var(--good,inherit)}
 </style>
 </head>
 <body>
@@ -480,9 +493,51 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
   <div class="top" style="margin-bottom:16px"><h1>עוד דפים</h1><button class="pill" id="mrback">חזרה</button></div>
   <button class="nav" id="nvrc"><span><b>קבלות</b><small>צילום קבלה וזיהוי אוטומטי של הסכום והקטגוריה</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
   <button class="nav" id="nvpr"><span><b>השוואת מחירים</b><small>באיזו רשת עדיף לקנות כל מוצר, לפי הקבלות שצולמו</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+  <button class="nav" id="nvim"><span><b>ייבוא פירוט אשראי או בנק</b><small>מוצאים הוצאות ששכחתם לרשום, ומוסיפים אותן בלחיצה</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+  <button class="nav" id="nvdc"><span><b>תיק מסמכים</b><small>קבלות על תרומות לזיכוי ממס, ותעודות אחריות עם תזכורת</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
   <button class="nav" id="nvgl"><span><b>יעדי חיסכון</b><small>מטרות כמו חופשה או קרן חירום, עם הפקדות ופס התקדמות</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
   <button class="nav" id="nvrp"><span><b>דוחות חודשיים</b><small>סיכום אוטומטי של כל חודש: חיסכון, חריגות והשוואה לחודש הקודם</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
   <button class="nav" id="nvds"><span><b>מחשבון הנחה</b><small>הנחה של 18%, 20%, 25% או 30% על מחיר</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+</div>
+
+<div id="v-im" hidden>
+  <div class="top" style="margin-bottom:16px"><h1>ייבוא פירוט</h1><button class="pill" id="imback">חזרה</button></div>
+  <section class="card">
+    <p class="hint" style="margin-top:0">מורידים מאתר חברת האשראי או הבנק את פירוט החודש כקובץ Excel או CSV, ובוחרים אותו כאן. האפליקציה מוצאת את ההוצאות שעוד לא נרשמו ומציעה להוסיף אותן. הקובץ נקרא בתוך המכשיר ולא נשמר בשום מקום.</p>
+    <input type="file" id="imf" accept=".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
+    <button class="btn main" id="impick" type="button" style="width:100%">בחירת קובץ פירוט</button>
+    <p class="hint" id="imst" aria-live="polite" style="margin-bottom:0"></p>
+    <div id="immap" hidden class="immap">
+      <p class="hint">לא זיהיתי לבד את העמודות. בחרו אילו עמודות בקובץ הן התאריך, בית העסק והסכום:</p>
+      <div class="fgrid3"><label><small>תאריך</small><select class="txt" id="imcd"></select></label><label><small>בית עסק</small><select class="txt" id="imcn"></select></label><label><small>סכום</small><select class="txt" id="imca"></select></label></div>
+      <button class="btn" id="imgo" type="button" style="width:100%;margin-top:10px">המשך</button>
+    </div>
+  </section>
+  <section class="card" id="imres" hidden>
+    <div class="lh"><h2 style="margin:0">לא נרשמו</h2><small class="hint" id="imcnt"></small></div>
+    <div id="imlist"></div>
+    <button class="btn main" id="imadd" type="button" style="width:100%;margin-top:12px">הוספת המסומנים</button>
+    <details class="scg"><summary>כבר רשומות (<span id="imokn">0</span>)</summary><div id="imok"></div></details>
+  </section>
+</div>
+
+<div id="v-dc" hidden>
+  <div class="top" style="margin-bottom:16px"><h1>תיק מסמכים</h1><button class="pill" id="dcback">חזרה</button></div>
+  <div class="seg" id="dctabs" style="margin-bottom:12px"><button type="button" data-k="donation" aria-pressed="true">תרומות</button><button type="button" data-k="warranty" aria-pressed="false">אחריות</button><button type="button" data-k="other" aria-pressed="false">אחר</button></div>
+  <section class="card" id="dcsum"></section>
+  <div id="dclist"></div>
+  <section class="card">
+    <h2 id="dcfh">תרומה חדשה</h2>
+    <label class="lbl" for="dct" id="dctl">למי תרמתם</label><input class="txt" id="dct" type="text" maxlength="80" autocomplete="off" style="width:100%">
+    <label class="lbl" for="dca">סכום</label><div class="amt" style="margin:0"><span>₪</span><input id="dca" type="text" inputmode="decimal" autocomplete="off" placeholder="לא חובה"></div>
+    <label class="lbl" for="dcd" id="dcdl">תאריך</label><input class="txt" id="dcd" type="date" style="width:100%">
+    <div id="dcuw" hidden><label class="lbl" for="dcu">האחריות בתוקף עד</label><input class="txt" id="dcu" type="date" style="width:100%">
+      <div class="dcq"><button class="lb" type="button" data-y="1">שנה</button><button class="lb" type="button" data-y="2">שנתיים</button><button class="lb" type="button" data-y="3">3 שנים</button></div></div>
+    <label class="lbl" for="dcn">הערה (לא חובה)</label><input class="txt" id="dcn" type="text" maxlength="200" autocomplete="off" style="width:100%">
+    <input type="file" id="dcfc" accept="image/*" capture="environment" hidden><input type="file" id="dcff" accept="image/*" hidden>
+    <div class="dcph"><button class="btn" id="dccam" type="button">צילום</button><button class="btn" id="dcgal" type="button">מהגלריה</button><span id="dcphs" class="hint"></span></div>
+    <button class="btn main" id="dcsave" type="button" style="width:100%;margin-top:12px">שמירה בתיק</button>
+  </section>
 </div>
 
 <div id="v-gl" hidden>
@@ -533,6 +588,8 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
       <input id="rcm" class="txt" type="text" placeholder="לא חובה" autocomplete="off">
       <div class="fgrid"><div><small>תאריך</small><input id="rcd" class="txt" type="date"></div><div><small>קטגוריה</small><select id="rcc" class="txt"></select></div></div>
       <div class="dup" id="rcmon" hidden></div>
+      <label class="rcdoc"><input type="checkbox" id="rcdk"> לשמור גם בתיק המסמכים</label>
+      <div id="rcdw" hidden class="fgrid"><div><small>סוג</small><select id="rcdt" class="txt"><option value="warranty">אחריות על מוצר</option><option value="donation">תרומה</option><option value="other">אחר</option></select></div><div id="rcduw"><small>אחריות עד</small><input id="rcdu" class="txt" type="date"></div></div>
       <p class="hint" id="rcwhy" style="margin:0 0 12px"></p>
       <div class="itbox">
         <h3>פירוט הקבלה</h3>
@@ -636,6 +693,6 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:500;font-siz
 
 <div id="toast"><div><span id="msg"></span><button id="undo">ביטול</button></div></div>
 
-<script src="app.js?v=bff08abb3f"></script>
+<script src="app.js?v=7b130b92df"></script>
 </body>
 </html>

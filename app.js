@@ -186,7 +186,7 @@ function render(){
   $('ctcard').hidden=!items.length;
   $('ct').innerHTML=items.map(x=>`<div class="tg" data-cat="${esc(x.c)}" role="button" tabindex="0"><div class="tt"><span>${esc(x.c)}</span><span>${money(x.v)} מתוך ${money(x.t)}</span></div><div class="bar sm"><i class="${x.v>x.t?'over':''}" style="width:${Math.min(100,x.p*100)}%"></i></div><small class="${x.v>x.t?'neg':''}">${x.v>x.t?'חריגה של '+money(x.v-x.t):'נשארו '+money(x.t-x.v)}</small></div>`).join('');
 
-  renderRem(); renderLog(tx); renderCat(); renderPpl(); renderSav(exp,inc); loadPending();
+  renderRem(); renderLog(tx); renderCat(); renderPpl(); renderSav(exp,inc); loadPending(); loadDocSoon();
 
   const used=CATS.map((c,i)=>({c,i,v:sums[i]})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
   const pie=$('pie'),lg=$('legend');
@@ -210,12 +210,14 @@ function render(){
 function renderRem(){
   const d=new Date();
   const due=recs.filter(r=>r.active&&!r.auto&&r.day<=d.getDate()&&!recDone.has(r.id));
-  $('remcard').hidden=!(isCur()&&due.length);
+  const ws=docSoon||[];
+  $('remcard').hidden=!(isCur()&&(due.length||ws.length));
   if(document.activeElement&&$('rem').contains(document.activeElement)) return;
-  $('rem').innerHTML=due.map(r=>`<div class="rem" data-id="${esc(r.id)}"><div class="rt"><b>${esc(r.c)}</b><small>${r.type==='i'?'הכנסה':'הוצאה'} קבועה, יום ${r.day} בחודש</small></div><div class="amt sm"><span>₪</span><input type="text" inputmode="decimal" value="${r.a}" aria-label="סכום ${esc(r.c)}"></div><button class="btn" data-act="add">הוספה</button></div>`).join('');
+  $('rem').innerHTML=ws.map(w=>`<div class="rem"><div class="rt"><b>אחריות: ${esc(w.title)}</b><small>נגמרת ב-${dTxt(w.until)}, עוד ${daysTo(w.until)} ימים</small></div><button class="btn" data-act="doc">לתיק</button></div>`).join('')+due.map(r=>`<div class="rem" data-id="${esc(r.id)}"><div class="rt"><b>${esc(r.c)}</b><small>${r.type==='i'?'הכנסה':'הוצאה'} קבועה, יום ${r.day} בחודש</small></div><div class="amt sm"><span>₪</span><input type="text" inputmode="decimal" value="${r.a}" aria-label="סכום ${esc(r.c)}"></div><button class="btn" data-act="add">הוספה</button></div>`).join('');
 }
 $('rem').addEventListener('input',e=>{if(e.target.matches('input'))clean(e.target)});
 $('rem').addEventListener('click',async e=>{
+  if(e.target.closest('[data-act="doc"]')){dcKind='warranty';location.hash='docs';return}
   const b=e.target.closest('[data-act="add"]'); if(!b) return;
   const row=b.closest('.rem'),r=recs.find(x=>x.id===row.dataset.id);
   const a=parseFloat(row.querySelector('input').value);
@@ -444,6 +446,280 @@ $('scklist').addEventListener('click',async e=>{
   const {error}=await sb.from('shortcut_keys').delete().eq('id',b.dataset.kdel);
   flash(error?'לא ניתן לבטל':'המפתח בוטל. קיצורים שמשתמשים בו יפסיקו לעבוד');$('sckshow').hidden=true;scLastKey='';loadKeys();
 });
+
+/* ---------- ייבוא פירוט אשראי או בנק: מוצא הוצאות שלא נרשמו ---------- */
+/* קריאת הקובץ ב-Worker מבודד (lib/sheet-reader.js), עם הגבלת זמן */
+function readSheetFile(file){
+  return new Promise(async(res,rej)=>{
+    if(!file||file.size>15e6){rej(new Error('size'));return}
+    const buf=await file.arrayBuffer();let msg;
+    if(/\.csv$/i.test(file.name)||file.type==='text/csv'){
+      let text;try{text=new TextDecoder('utf-8',{fatal:true}).decode(buf)}catch(e){text=new TextDecoder('windows-1255').decode(buf)}
+      msg={text:text.replace(/^﻿/,'')};
+    }else msg={buf};
+    let w;try{w=new Worker('lib/sheet-reader.js')}catch(e){rej(e);return}
+    const to=setTimeout(()=>{w.terminate();rej(new Error('timeout'))},20000);
+    w.onmessage=e=>{clearTimeout(to);w.terminate();const d=e.data||{};if(d.ok&&Array.isArray(d.sheets))res(d.sheets);else rej(new Error('parse'))};
+    w.onerror=()=>{clearTimeout(to);w.terminate();rej(new Error('worker'))};
+    w.postMessage(msg,msg.buf?[msg.buf]:[]);
+  });
+}
+const stDate=v=>{
+  let y,m,d;
+  if(typeof v==='number'){if(v<20000||v>80000) return null;const t=new Date(Math.round((v-25569)*864e5));y=t.getUTCFullYear();m=t.getUTCMonth()+1;d=t.getUTCDate()}
+  else{
+    const s=String(v).trim();let x=/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})(?:\s|$)/.exec(s);
+    if(x){d=+x[1];m=+x[2];y=+x[3]<100?2000+ +x[3]:+x[3]}
+    else if((x=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s))){y=+x[1];m=+x[2];d=+x[3]}
+    else return null;
+  }
+  const t=new Date(y,m-1,d,12);
+  return t.getMonth()===m-1&&y>2000&&t.getTime()<Date.now()+40*864e5?t.getTime():null;
+};
+const stAmt=v=>{
+  if(typeof v==='number') return isFinite(v)?v:null;
+  let s=String(v).replace(/[‎‏‪-‮]/g,'').replace(/₪|ש"?ח|NIS|ILS/gi,'').replace(/,/g,'').trim();
+  if(!s) return null;
+  let neg=false;
+  if(/^\(.*\)$/.test(s)){neg=true;s=s.slice(1,-1)}
+  if(/-$/.test(s)){neg=true;s=s.slice(0,-1)}
+  if(/^-/.test(s)){neg=!neg;s=s.slice(1)}
+  if(!/^\d+(\.\d+)?$/.test(s.trim())) return null;
+  const n=parseFloat(s);return neg?-n:n;
+};
+const CARDPAY=/ישראכרט|isracard|כאל|cal\b|לאומי קארד|מקס איט|max it|^מקס|אמריקן אקספרס|amex|דיינרס|diners|כרטיסי אשראי|חיוב כרטיס/i;
+/* מאתר בכל גיליון את שורות הכותרת (תאריך, בית עסק, סכום) וקורא את התנועות שמתחתן.
+   פירוט של כרטיס: סכום חיובי הוא הוצאה. פירוט של בנק: עמודת חובה/זכות, או סכום עם סימן */
+function stParse(sheets,manual){
+  const out=[];let found=false;
+  sheets.forEach((rows,si)=>{
+    let map=manual&&manual.s===si?manual:null;
+    rows.forEach((row,ri)=>{
+      const cells=row.map(v=>typeof v==='string'?v.replace(/\s+/g,' ').trim():v);
+      if(!manual){
+        const txt=cells.map(v=>typeof v==='string'?v:'');
+        const di=txt.map((s,i)=>/תאריך|^date/i.test(s)&&s.length<30?i:-1).filter(i=>i>=0);
+        const ni=txt.findIndex(s=>/שם\s*בית\s*ה?עסק|בית\s*ה?עסק|תיאור|תאור|פרטים|^הפעולה|שם העסק|description|merchant/i.test(s)&&s.length<30);
+        const ci=txt.findIndex(s=>/סכום\s*ה?חיוב|חיוב\s*בש|סכום\s*לחיוב|סכום\s*בש/.test(s)&&s.length<30);
+        const ai=ci>=0?ci:txt.findIndex(s=>/^סכום|amount/i.test(s)&&!/מקורי|עסקה\s*במט/.test(s)&&s.length<30);
+        const dbi=txt.findIndex(s=>/^ב?חובה/.test(s)&&s.length<12),cri=txt.findIndex(s=>/^ב?זכות/.test(s)&&s.length<12);
+        if(di.length&&ni>=0&&(ai>=0||dbi>=0)){
+          const dpick=di.find(i=>/עסק|רכיש|פעולה/.test(txt[i]))??di.find(i=>!/ערך|חיוב/.test(txt[i]))??di[0];
+          map={s:si,d:dpick,n:ni,a:ai,db:dbi,cr:cri,bank:dbi>=0||txt.some(s=>/יתרה/.test(s))};found=true;return;
+        }
+      }else if(ri<=manual.r) return;
+      if(!map) return;
+      const t=stDate(cells[map.d]);if(!t) return;
+      const name=String(cells[map.n]||'').trim();
+      if(!name||/סה"?כ|^total/i.test(name)) return;
+      let a=null,type='e';
+      if(map.db>=0){const db=stAmt(cells[map.db]),cr=map.cr>=0?stAmt(cells[map.cr]):null;if(db&&Math.abs(db)>0){a=Math.abs(db)}else if(cr&&Math.abs(cr)>0){a=Math.abs(cr);type='i'}}
+      else{const v=stAmt(cells[map.a]);if(v==null||v===0) return;if(map.bank){a=Math.abs(v);type=v<0?'e':'i'}else{a=Math.abs(v);type=v<0?'r':'e'}}
+      if(!(a>0)||a>1e6) return;
+      out.push({t,name:name.slice(0,80),a:Math.round(a*100)/100,type,card:type==='e'&&map.bank&&CARDPAY.test(name)});
+    });
+  });
+  return {rows:out,found:found||!!manual};
+}
+/* התאמה לתנועות שכבר נרשמו: אותו סוג, סכום כמעט זהה, עד 4 ימים הפרש. חשבון שחולק לשני חודשים נספר בסכום המלא */
+function stMatch(rows,recorded){
+  const cands=[],grp={};
+  recorded.forEach(x=>{if(x.grp){(grp[x.grp]=grp[x.grp]||[]).push(x)}else cands.push({id:x.id,type:x.type,a:x.a,t:x.t,c:x.c,note:x.note})});
+  Object.values(grp).forEach(g=>cands.push({id:g[0].id,type:g[0].type,a:Math.round(g.reduce((s,x)=>s+x.a,0)*100)/100,t:Math.max(...g.map(x=>x.t)),c:g[0].c,note:g[0].note}));
+  const pairs=[];
+  rows.forEach((r,i)=>{if(r.type==='r') return;cands.forEach((c,j)=>{
+    if(c.type!==r.type) return;
+    const da=Math.abs(c.a-r.a),dd=Math.abs(c.t-r.t)/864e5;
+    if(da<=Math.max(1,r.a*0.01)&&dd<=4.5) pairs.push({i,j,s:dd+da*2});
+  })});
+  pairs.sort((x,y)=>x.s-y.s);
+  const ui=new Set(),uj=new Set(),m={};
+  pairs.forEach(p=>{if(ui.has(p.i)||uj.has(p.j)) return;ui.add(p.i);uj.add(p.j);m[p.i]=cands[p.j]});
+  return m;
+}
+let im=null;
+$('impick').onclick=()=>$('imf').click();
+$('imf').addEventListener('change',async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f) return;
+  $('imres').hidden=true;$('immap').hidden=true;$('imst').textContent='קורא את הקובץ...';
+  let sheets;
+  try{sheets=await readSheetFile(f)}catch(err){$('imst').textContent=err.message==='size'?'הקובץ גדול מדי.':'לא הצלחתי לקרוא את הקובץ. בדקו שזה קובץ Excel או CSV של פירוט.';return}
+  im={sheets,name:f.name};
+  const p=stParse(sheets);
+  if(!p.found||!p.rows.length){imManual();return}
+  await imRun(p.rows);
+});
+/* בחירת עמודות ידנית: מהשורה הראשונה שנראית כמו כותרת */
+function imManual(){
+  let s=0,r=-1;
+  for(let si=0;si<im.sheets.length&&r<0;si++)for(let ri=0;ri<Math.min(40,im.sheets[si].length);ri++){if(im.sheets[si][ri].filter(v=>typeof v==='string'&&/[א-תA-Za-z]/.test(v)).length>=3){s=si;r=ri;break}}
+  if(r<0){$('imst').textContent='לא מצאתי בקובץ טבלה של תנועות.';return}
+  const hdr=im.sheets[s][r],opts=hdr.map((v,i)=>`<option value="${i}">${esc(String(v||'עמודה '+(i+1)).slice(0,30))}</option>`).join('');
+  ['imcd','imcn','imca'].forEach(id=>$(id).innerHTML=opts);
+  im.hdr={s,r};$('imst').textContent='';$('immap').hidden=false;
+}
+$('imgo').onclick=async()=>{
+  if(!im||!im.hdr) return;
+  const man={s:im.hdr.s,r:im.hdr.r,d:+$('imcd').value,n:+$('imcn').value,a:+$('imca').value,db:-1,cr:-1,bank:false};
+  const p=stParse(im.sheets,man);
+  if(!p.rows.length){$('imst').textContent='לא מצאתי תנועות לפי העמודות שנבחרו. נסו בחירה אחרת.';return}
+  $('immap').hidden=true;await imRun(p.rows);
+};
+async function imRun(rows){
+  const t0=Math.min(...rows.map(r=>r.t))-6*864e5,t1=Math.max(...rows.map(r=>r.t))+6*864e5;
+  $('imst').textContent='משווה לתנועות שכבר רשומות...';
+  const {data,error}=await sb.from('tx').select('id,type,a,c,t,grp,note').eq('del',false).gte('t',t0).lt('t',t1).limit(5000);
+  if(error){$('imst').textContent='אין גישה לנתונים. בדקו חיבור לאינטרנט.';return}
+  let all=data||[];
+  /* חשבון שחולק לשני חודשים: החצי השני יכול להיות מחוץ לטווח התאריכים של הקובץ */
+  const grps=[...new Set(all.filter(x=>x.grp).map(x=>x.grp))];
+  if(grps.length){const g=await sb.from('tx').select('id,type,a,c,t,grp,note').eq('del',false).in('grp',grps.slice(0,200));if(!g.error){const ids=new Set(all.map(x=>x.id));(g.data||[]).forEach(x=>{if(!ids.has(x.id))all.push(x)})}}
+  const rec=all.map(x=>({...x,a:Number(x.a),t:Number(x.t)}));
+  const m=stMatch(rows,rec);
+  im.rows=rows.map((r,i)=>({...r,i,match:m[i]||null,c:r.type==='i'?'':(catGuessFor(r.name)||''),on:!m[i]&&r.type==='e'&&!r.card}));
+  imRender();
+}
+function imRender(){
+  const miss=im.rows.filter(r=>!r.match),ok=im.rows.filter(r=>r.match);
+  const d=t=>new Date(t).toLocaleDateString('he-IL',{day:'numeric',month:'numeric'});
+  $('imst').textContent=`בקובץ ${im.rows.length} תנועות. ${ok.length} כבר רשומות, ${miss.length} לא נרשמו.`;
+  $('imcnt').textContent=miss.length?'':'הכול רשום';
+  $('imlist').innerHTML=miss.map(r=>{
+    const cats=r.type==='i'?ICATS:CATS;
+    const why=r.card?'חיוב חודשי של כרטיס אשראי. ההוצאות עצמן מופיעות בפירוט של הכרטיס, ולכן לא מסומן':r.type==='r'?'זיכוי או החזר מבית העסק. לא מסומן':r.type==='i'?'הכנסה':'';
+    return `<div class="imr${r.need?' need':''}" data-i="${r.i}"><input type="checkbox" aria-label="לסמן ${esc(r.name)}"${r.on?' checked':''}${r.type==='r'?' disabled':''}>
+      <div><b>${esc(r.name)}</b><div class="d">${d(r.t)}</div></div><span class="am">${r.type==='i'||r.type==='r'?'+':''}${money2(r.a)}</span>
+      ${r.type==='r'?'':`<select class="txt" aria-label="קטגוריה ל${esc(r.name)}"><option value="">בחרו קטגוריה</option>${cats.map(c=>`<option${c===r.c?' selected':''}>${esc(c)}</option>`).join('')}</select>`}
+      ${why?`<div class="why">${why}</div>`:''}</div>`;
+  }).join('')||'<p class="hint">כל התנועות בקובץ כבר רשומות באפליקציה.</p>';
+  $('imokn').textContent=ok.length;
+  $('imok').innerHTML=ok.map(r=>`<div class="li"><div><b>${esc(r.name)}</b><br><small>${d(r.t)} · נרשם כ${esc(r.match.c)}${r.match.note?' ('+esc(r.match.note)+')':''}</small></div><span>${money2(r.a)}</span></div>`).join('');
+  $('imres').hidden=false;imCount();
+}
+function imCount(){const n=im?im.rows.filter(r=>!r.match&&r.on).length:0;$('imadd').textContent=n?`הוספת ${n} המסומנות`:'סמנו תנועות להוספה';$('imadd').disabled=!n}
+$('imlist').addEventListener('change',e=>{
+  const row=e.target.closest('.imr');if(!row||!im) return;const r=im.rows[+row.dataset.i];
+  if(e.target.type==='checkbox') r.on=e.target.checked;
+  else if(e.target.tagName==='SELECT'){r.c=e.target.value;if(r.c){r.on=true;r.need=false;row.classList.remove('need');row.querySelector('input').checked=true}}
+  imCount();
+});
+$('imadd').onclick=async()=>{
+  if(!im) return;if(!user){flash('בחרו קודם מי מתעד');return}
+  const sel=im.rows.filter(r=>!r.match&&r.on);
+  const bad=sel.filter(r=>!r.c);
+  if(bad.length){bad.forEach(r=>{r.need=true});imRender();flash(bad.length===1?'בחרו קטגוריה לשורה המסומנת באדום':`בחרו קטגוריה ל-${bad.length} שורות המסומנות באדום`);return}
+  const parts=[];
+  sel.forEach(r=>{const o={type:r.type,a:r.a,c:r.c,t:r.t,note:r.name};if(r.type==='e'&&SPLIT_CATS.includes(r.c))parts.push(...splitParts(o).parts);else parts.push(o)});
+  $('imadd').disabled=true;
+  try{
+    if(!(await addTx({parts}))) return;
+    const seen=new Set();for(const r of sel){const k=nm(r.name);if(r.type==='e'&&k&&!seen.has(k)&&rules[k]!==r.c){seen.add(k);await saveRule(r.name,r.c)}}
+    flash(`נוספו ${sel.length} תנועות מהפירוט`,true);
+    await imRun(im.rows.map(({t,name,a,type,card})=>({t,name,a,type,card})));
+    location.hash='import';
+  }finally{imCount()}
+};
+
+/* ---------- תיק מסמכים: תרומות לזיכוי ממס ותעודות אחריות ---------- */
+const DON_MIN={2026:207}; /* הסכום השנתי המינימלי לזיכוי לפי סעיף 46 (מתעדכן כל שנה) */
+let docs=[],dcKind='donation',dcYear=new Date().getFullYear(),dcBlob=null;
+var docSoon=[],docSoonAt=0; /* var: נקרא מ-renderRem גם לפני שהקטע הזה רץ */
+const dTxt=s=>{const [y,m,d]=String(s).split('-').map(Number);return `${d}/${m}/${y}`};
+const daysTo=s=>{const [y,m,d]=String(s).split('-').map(Number);const n=new Date();return Math.round((new Date(y,m-1,d)-new Date(n.getFullYear(),n.getMonth(),n.getDate()))/864e5)};
+async function loadDocs(){
+  const {data,error}=await sb.from('docs').select('*').eq('del',false).order('d',{ascending:false}).limit(1000);
+  if(error){$('dclist').innerHTML='<p class="hint">אין גישה לתיק. בדקו חיבור לאינטרנט.</p>';return}
+  docs=(data||[]).map(x=>({...x,amount:x.amount==null?null:Number(x.amount)}));renderDocs();
+}
+function renderDocs(){
+  document.querySelectorAll('#dctabs button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.k===dcKind)));
+  const L={donation:['תרומה חדשה','למי תרמתם','תאריך התרומה'],warranty:['מוצר חדש באחריות','שם המוצר','תאריך הקנייה'],other:['מסמך חדש','שם המסמך','תאריך']}[dcKind];
+  $('dcfh').textContent=L[0];$('dctl').textContent=L[1];$('dcdl').textContent=L[2];$('dcuw').hidden=dcKind!=='warranty';
+  if(!$('dcd').value) $('dcd').value=todayStr();
+  let list=docs.filter(x=>x.kind===dcKind);
+  if(dcKind==='donation'){
+    const years=[...new Set([new Date().getFullYear(),...docs.filter(x=>x.kind==='donation').map(x=>+x.d.slice(0,4))])].sort((a,b)=>b-a);
+    list=list.filter(x=>+x.d.slice(0,4)===dcYear);
+    const tot=Math.round(list.reduce((s,x)=>s+(x.amount||0),0)*100)/100,min=DON_MIN[dcYear];
+    $('dcsum').innerHTML=`<div class="lh"><h2 style="margin:0">תרומות ב-</h2><select class="txt" id="dcy" aria-label="שנה">${years.map(y=>`<option${y===dcYear?' selected':''}>${y}</option>`).join('')}</select></div>
+      <b class="big">${money2(tot)}</b><small class="hint">${list.length} קבלות</small>
+      <p class="hint">זיכוי משוער: <b>${money2(Math.round(tot*35)/100)}</b> (35% מהסכום, לפי סעיף 46)${min?(tot>min?'':`. הזיכוי ניתן רק כשסך התרומות בשנה עולה על ${money2(min)}`):''}.
+      מ-2026 הזיכוי ניתן רק על תרומות שהעמותה דיווחה במערכת "תרומות ישראל" של רשות המסים, ושכירים יכולים לקבל אותו בתלוש דרך המעסיק. כדאי לבדוק שם שכל התרומות מופיעות.</p>
+      ${list.length?'<button class="lb" type="button" id="dcxl">הורדת רשימת השנה לאקסל</button>':''}`;
+  }else if(dcKind==='warranty'){
+    const act=list.filter(x=>x.until&&daysTo(x.until)>=0),soon=act.filter(x=>daysTo(x.until)<=30);
+    $('dcsum').innerHTML=`<p class="hint" style="margin:0">${act.length===1?'מוצר אחד':act.length+' מוצרים'} באחריות${soon.length?(act.length===1?', והיא נגמרת בחודש הקרוב':`, ${soon.length===1?'אחד':soon.length} מהם נגמרים בחודש הקרוב`):''}. חודש לפני שהאחריות נגמרת תופיע תזכורת במסך הבית.</p>`;
+    list.sort((a,b)=>(a.until||'9999').localeCompare(b.until||'9999'));
+  }else $('dcsum').innerHTML='<p class="hint" style="margin:0">מסמכים שכדאי לשמור: חוזים, אישורי תשלום, קבלות על קניות גדולות.</p>';
+  $('dclist').innerHTML=list.length?`<section class="card">${list.map(x=>{
+    let st='';if(x.kind==='warranty'&&x.until){const n=daysTo(x.until);st=n<0?`<small class="warn">האחריות נגמרה ב-${dTxt(x.until)}</small>`:`<small${n<=30?' class="warn"':''}>באחריות עד ${dTxt(x.until)}${n<=30?` (עוד ${n} ימים)`:''}</small>`}
+    return `<div class="dci" data-id="${esc(x.id)}"><div class="m"><b>${esc(x.title)}</b><small>${dTxt(x.d)}${x.amount!=null?' · '+money2(x.amount):''}${x.note?' · '+esc(x.note):''}</small>${st?'<br>'+st:''}</div>
+      <div class="x">${x.path?'<button class="lb" type="button" data-img>תמונה</button>':''}<button class="lb" type="button" data-del>מחיקה</button></div></div>`;
+  }).join('')}</section>`:'<p class="hint" style="text-align:center">עוד אין כאן מסמכים.</p>';
+}
+$('dctabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b) return;dcKind=b.dataset.k;renderDocs()});
+$('dcsum').addEventListener('change',e=>{if(e.target.id==='dcy'){dcYear=+e.target.value;renderDocs()}});
+$('dcsum').addEventListener('click',e=>{
+  if(e.target.id!=='dcxl'||!window.XLSX) return;
+  const list=docs.filter(x=>x.kind==='donation'&&+x.d.slice(0,4)===dcYear);
+  const rows=[['תאריך','למי','סכום','הערה'],...list.map(x=>[dTxt(x.d),x.title,x.amount||0,x.note||''])];
+  const wb=XLSX.utils.book_new();wb.Workbook={Views:[{RTL:true}]};XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'תרומות');
+  dlBlob(new Blob([XLSX.write(wb,{type:'array',bookType:'xlsx'})],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`donations-${dcYear}.xlsx`);
+});
+$('dclist').addEventListener('click',async e=>{
+  const row=e.target.closest('.dci');if(!row) return;const x=docs.find(d=>d.id===row.dataset.id);if(!x) return;
+  if(e.target.closest('[data-img]')){const {data}=await sb.storage.from('receipts').createSignedUrl(x.path,3600);if(data&&data.signedUrl)zvOpen(data.signedUrl);else flash('לא ניתן לפתוח את התמונה');return}
+  const b=e.target.closest('[data-del]');if(!b||!confirmTwice(b,'למחוק?')) return;
+  const {error}=await sb.from('docs').update({del:true}).eq('id',x.id);
+  if(error){flash('לא ניתן למחוק');return}
+  if(x.path&&!x.tx_id) sb.storage.from('receipts').remove([x.path]);
+  flash('נמחק מהתיק');docSoonAt=0;loadDocs();
+});
+$('dcuw').addEventListener('click',e=>{const b=e.target.closest('[data-y]');if(!b) return;const base=$('dcd').value||todayStr(),[y,m,d]=base.split('-').map(Number);$('dcu').value=`${y+ +b.dataset.y}-${pad(m)}-${pad(d)}`});
+/* תמונה למסמך: מוקטנת ל-1600 פיקסלים ונשמרת כ-JPEG */
+async function dcPhoto(file){
+  if(!file) return;
+  try{
+    const im2=await loadImg(file),k=Math.min(1,1600/Math.max(im2.naturalWidth,im2.naturalHeight)),c=document.createElement('canvas');
+    c.width=Math.round(im2.naturalWidth*k);c.height=Math.round(im2.naturalHeight*k);c.getContext('2d').drawImage(im2,0,0,c.width,c.height);
+    dcBlob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.8));freeCv(c);
+    $('dcphs').textContent=dcBlob?'התמונה מצורפת':'';
+  }catch(e){flash('לא ניתן לפתוח את התמונה')}
+}
+$('dccam').onclick=()=>$('dcfc').click();$('dcgal').onclick=()=>$('dcff').click();
+$('dcfc').addEventListener('change',e=>{dcPhoto(e.target.files[0]);e.target.value=''});
+$('dcff').addEventListener('change',e=>{dcPhoto(e.target.files[0]);e.target.value=''});
+async function docUpload(blob){
+  const d=new Date(),path=`${d.getFullYear()}-${pad(d.getMonth()+1)}/${uuid()}.jpg`;
+  const {error}=await sb.storage.from('receipts').upload(path,blob,{contentType:'image/jpeg',upsert:false});
+  if(error) throw error;return path;
+}
+$('dcsave').onclick=async()=>{
+  const title=$('dct').value.trim(),a=$('dca').value.trim(),d=$('dcd').value,u=$('dcu').value;
+  if(!title){flash(dcKind==='donation'?'כתבו למי תרמתם':'כתבו שם');return}
+  if(!d){flash('בחרו תאריך');return}
+  if(a&&!(parseFloat(a)>=0)){flash('הסכום לא תקין');return}
+  if(dcKind==='warranty'&&!u){flash('בחרו עד מתי האחריות');return}
+  $('dcsave').disabled=true;let path=null;
+  try{
+    if(dcBlob){try{path=await docUpload(dcBlob)}catch(e){flash('לא ניתן להעלות את התמונה. בדקו חיבור לאינטרנט');return}}
+    const {error}=await sb.from('docs').insert({kind:dcKind,title:title.slice(0,80),amount:a?Math.round(parseFloat(a)*100)/100:null,d,until:dcKind==='warranty'?u:null,path,note:$('dcn').value.trim().slice(0,200)||null,by_name:user||meName||null});
+    if(error){if(path)sb.storage.from('receipts').remove([path]);flash('לא ניתן לשמור. בדקו חיבור לאינטרנט');return}
+    ['dct','dca','dcu','dcn'].forEach(id=>$(id).value='');dcBlob=null;$('dcphs').textContent='';
+    flash('נשמר בתיק המסמכים');docSoonAt=0;loadDocs();
+  }finally{$('dcsave').disabled=false}
+};
+/* תזכורת במסך הבית: אחריות שנגמרת בחודש הקרוב (נבדק פעם בשעה) */
+async function loadDocSoon(){
+  if(!sb||!authed||Date.now()-docSoonAt<36e5) return;docSoonAt=Date.now();
+  const n=new Date(),a=todayStr(),b=new Date(n.getFullYear(),n.getMonth(),n.getDate()+30),bs=`${b.getFullYear()}-${pad(b.getMonth()+1)}-${pad(b.getDate())}`;
+  const {data}=await sb.from('docs').select('id,title,until').eq('kind','warranty').eq('del',false).gte('until',a).lte('until',bs).limit(20);
+  docSoon=data||[];renderRem();
+}
+/* מהסורק: שמירת הקבלה גם בתיק */
+$('rcdk').addEventListener('change',()=>{$('rcdw').hidden=!$('rcdk').checked;rcDocKind()});
+$('rcdt').addEventListener('change',rcDocKind);
+function rcDocKind(){$('rcduw').hidden=$('rcdt').value!=='warranty';if($('rcdt').value==='warranty'&&!$('rcdu').value){const [y,m,d]=($('rcd').value||todayStr()).split('-').map(Number);$('rcdu').value=`${y+1}-${pad(m)}-${pad(d)}`}}
 
 /* ---------- יעדי חיסכון ---------- */
 let goals=[],gmoves=[];
@@ -737,16 +1013,17 @@ $('ct').addEventListener('keydown',e=>{const el=e.target.closest('[data-cat]');i
 addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('cv').hidden&&$('ed').hidden&&$('rv').hidden&&$('zv').hidden&&$('sc').hidden){closeCat();return}if(!$('zv').hidden)zvClose();else if(!$('sc').hidden)$('scx').click();else if(!$('rv').hidden)closeRv();else if(!$('ed').hidden)closeEdit();else if(!$('ap').hidden)closeAp()}});
 
 /* ---------- settings ---------- */
-const VIEWS={settings:'v-set',more:'v-more',receipts:'v-rc',discount:'v-disc',prices:'v-pr',goals:'v-gl',reports:'v-rp'};
+const VIEWS={settings:'v-set',more:'v-more',receipts:'v-rc',discount:'v-disc',prices:'v-pr',goals:'v-gl',reports:'v-rp',import:'v-im',docs:'v-dc'};
 function show(){
   const cur=VIEWS[location.hash.slice(1)]||'v-home';
   $('v-login').hidden=authed||mfaNeed; $('v-mfa').hidden=!mfaNeed;
-  ['v-home','v-set','v-more','v-rc','v-disc','v-pr','v-gl','v-rp'].forEach(id=>{$(id).hidden=!authed||id!==cur});
+  ['v-home','v-set','v-more','v-rc','v-disc','v-pr','v-gl','v-rp','v-im','v-dc'].forEach(id=>{$(id).hidden=!authed||id!==cur});
   window.scrollTo(0,0);
   if(cur==='v-rc'&&authed){loadReceipts();loadItems()}
   if(cur==='v-pr'&&authed) renderPrices();
   if(cur==='v-gl'&&authed) loadGoals();
   if(cur==='v-rp'&&authed) loadReports();
+  if(cur==='v-dc'&&authed) loadDocs();
   if(cur==='v-set'&&authed){loadBackups();loadKeys()}
   if(cur!=='v-rc'&&tw&&!rcBusy){tw.terminate();tw=null} /* משחרר זיכרון של מנוע הקריאה */
 }
@@ -758,6 +1035,10 @@ $('nvrc').onclick=()=>{location.hash='receipts'};
 $('nvds').onclick=()=>{location.hash='discount'};
 $('nvpr').onclick=()=>{location.hash='prices'};
 $('nvgl').onclick=()=>{location.hash='goals'};
+$('nvim').onclick=()=>{location.hash='import'};
+$('nvdc').onclick=()=>{location.hash='docs'};
+$('imback').onclick=()=>{location.hash='more'};
+$('dcback').onclick=()=>{location.hash='more'};
 $('nvrp').onclick=()=>{location.hash='reports'};
 $('glback').onclick=()=>{location.hash='more'};
 $('rpback').onclick=()=>{if(!$('rpview').hidden){rpClose();return}location.hash='more'};
@@ -2152,7 +2433,7 @@ function rcReset(){
   if(rcUrl){URL.revokeObjectURL(rcUrl);rcUrl=null}
   $('rcimg').removeAttribute('src');$('rcrescan').hidden=true;$('rcnote').textContent='';
 }
-function rcClear(){rcReset();rcSrc=null;scHide();$('rcfc').value='';$('rcff').value=''}
+function rcClear(){$('rcdk').checked=false;$('rcdw').hidden=true;$('rcdu').value='';rcReset();rcSrc=null;scHide();$('rcfc').value='';$('rcff').value=''}
 tessLog=m=>{
   const st=m.status||'';
   if(st==='loading tesseract core') rcProg('טוען את מנוע הקריאה...',.1+(m.progress||0)*.1);
@@ -2424,8 +2705,14 @@ $('rcsave').onclick=async()=>{
     if(key&&(!g||g.c!==c)) await saveRule(key,c);
     const li=rcItems.get();
     const itemsOk=await saveItems(txId,li,{store:storeOf(merchant),cat:c,t:when,by:user});
+    let docOk=null;
+    if($('rcdk').checked){
+      const k=$('rcdt').value,u=$('rcdu').value;
+      const r=await sb.from('docs').insert({kind:k,title:(merchant||c).slice(0,80),amount:a,d,until:k==='warranty'&&u?u:null,path,tx_id:txId,by_name:user});
+      docOk=!r.error;if(!r.error)docSoonAt=0;
+    }
     const now=new Date(),other=!(Y===now.getFullYear()&&M-1===now.getMonth());
-    flash(`נשמרו ${money(a)} ב${c}, עם תמונת הקבלה`+(li.length&&itemsOk?` ו-${li.length} פריטים`:'')+(other?`. התאריך ${D}/${M}/${Y}, ולכן ההוצאה נמצאת ב${monName(Y,M)}`:'')+(li.length&&!itemsOk?'. פירוט הפריטים לא נשמר, אפשר לנסות שוב מהקבלות האחרונות':''),true);
+    flash(`נשמרו ${money(a)} ב${c}, עם תמונת הקבלה`+(li.length&&itemsOk?` ו-${li.length} פריטים`:'')+(other?`. התאריך ${D}/${M}/${Y}, ולכן ההוצאה נמצאת ב${monName(Y,M)}`:'')+(li.length&&!itemsOk?'. פירוט הפריטים לא נשמר, אפשר לנסות שוב מהקבלות האחרונות':'')+(docOk===true?'. נשמרה גם בתיק המסמכים':docOk===false?'. השמירה בתיק המסמכים נכשלה':''),true);
     rcClear(); loadReceipts();
   }finally{rcSaving=false;$('rcsave').disabled=false}
 };
