@@ -2872,7 +2872,22 @@ $('rvread').onclick=async()=>{
   try{
     let blob;
     try{blob=await (await fetch($('rvimg').src)).blob()}catch(e){st('לא ניתן לקרוא את התמונה מהאחסון. צלמו את הקבלה שוב');return}
-    const img=await loadImg(blob),w=await getWorker(),total=+cur.a||0;
+    const img=await loadImg(blob),total=+cur.a||0;
+    /* קודם הקריאה המדויקת (Gemini דרך השרת), ורק אם היא לא זמינה: הקריאה במכשיר */
+    let aiErr=null;
+    if(navigator.onLine!==false){
+      st('קורא את הפריטים בקריאה המדויקת...');
+      const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;c.getContext('2d').drawImage(img,0,0);
+      let ai=null;try{ai=await aiReceipt(c)}catch(e){ai={err:'net'}}finally{freeCv(c)}
+      if(!rvCur||rvCur.id!==cur.id) return;
+      if(ai&&!ai.err&&ai.items.length){
+        rvBox.set(ai.items);$('rvisave').hidden=false;
+        st(`נקראו ${ai.items.length} פריטים בקריאה המדויקת. בדקו אותם ולחצו על "שמירת הפירוט".`);return;
+      }
+      aiErr=ai&&ai.err?ai.err:'empty';
+    }
+    const w=await getWorker();
+    st('קורא את הפריטים מהתמונה, במכשיר...');
     /* אותו סורק כמו בצילום חדש: בידוד הקבלה מהרקע, יישור וחידוד. תמונה שכבר נסרקה נשארת כמו שהיא */
     let det={ok:false,quad:SC_FULL()};
     try{const v=scView(img,0,1280);det=scDetect(v);freeCv(v)}catch(e){}
@@ -2885,7 +2900,7 @@ $('rvread').onclick=async()=>{
     if(!rvCur||rvCur.id!==cur.id) return;
     if(!it.items.length){st('לא זיהיתי פריטים בתמונה. אפשר להוסיף שורות ידנית.');return}
     rvBox.set(it.items); $('rvisave').hidden=false;
-    st(`נקראו ${it.items.length} פריטים. בדקו אותם ולחצו על "שמירת הפירוט".`);
+    st(`נקראו ${it.items.length} פריטים בקריאה במכשיר${aiErr?(aiErr===429?' (נגמרה המכסה היומית לקריאה המדויקת)':` (הקריאה המדויקת לא הצליחה: ${aiErr})`):''}. בדקו אותם ולחצו על "שמירת הפירוט".`);
   }catch(e){st('הקריאה נכשלה. אפשר להוסיף שורות ידנית')}
   finally{
     rcBusy=false;$('rvread').disabled=false;tessLog=prevLog;
