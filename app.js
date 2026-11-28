@@ -1358,7 +1358,27 @@ function storeOf(merchant){
 
 /* --- שם מוצר להשוואה: מילים, גדלים (גרם/מ"ל), אחוזים --- */
 const FINALS={'ך':'כ','ם':'מ','ן':'נ','ף':'פ','ץ':'צ'};
-const NAME_STOP=new Set(['של','עם','יח','יחידה','יחידות','מארז','אריזה','חדש','מבצע']);
+const NAME_STOP=new Set(['של','עם','יח','יחידה','יחידות','מארז','אריזה','חדש','מבצע','מובחר','טרי','ארוז','בתפזורת','במשקל','ישראלי','פרימיומ','מהדרינ','איכות','מוזל','שקילה']);
+/* מה שלא שייך לשם המוצר עצמו: שם הרשת והמותג. כך "קקאו 150 גר רמי לוי" ו"קקאו עלית 500 ג" הם אותו מוצר, קקאו */
+const NAME_NOISE_RAW=['שופרסל שלי','שופרסל','רמי לוי','רמילוי','ויקטורי','יוחננוף','טיב טעם','אושר עד','חצי חינם','יינות ביתן','קרפור','קשת טעמים','פרש מרקט','סטופ מרקט','מחסני השוק','זול ובגדול',
+  'תנובה','שטראוס','עלית','אסם','טרה','יטבתה','תלמה','סוגת','וילי פוד','ויליפוד','זוגלובק','טבעול','נסטלה','קנור','היינץ','אחלה','צבר','יד מרדכי','השחר העולה','פרימור','פריגת','נביעות','מי עדן','כרמית','ברמן','אנגל','מעדנות','גד','מיה','שמרית','דנונה','מולר','יופלה','פרי ניר','בייגל בייגל'];
+const NAME_NOISE=NAME_NOISE_RAW.map(p=>p.replace(/[ךםןףץ]/g,c=>({'ך':'כ','ם':'מ','ן':'נ','ף':'פ','ץ':'צ'})[c]));
+const NOISE_RE=new RegExp('(^|[^א-תa-z])('+[...new Set(NAME_NOISE)].sort((x,y)=>y.length-x.length).join('|')+')(?=$|[^א-תa-z])','g');
+/* פירות וירקות: שורשי מילים אחרי החלפת אותיות סופיות ויחיד/רבים. מוצר מעובד (מיובש, מיץ, קפוא) לא נחשב */
+const PRODUCE=['עגבני','מלפפונ','בצל','שומ','תפוח','תפוז','לימונ','אבוקדו','בננ','מנגו','ענב','אבטיח','מלונ','אגס','אפרסק','נקטרינ','שזיפ','קלמנטינ','מנדרינ','אשכולי','פומל','קיווי','תות','אננס','רימונ','תאנ','פלפל','גזר','קישוא','חציל','ברוקולי','כרובי','כרוב','חס','תרד','פטרוזילי','כוסבר','שמיר','נענע','סלק','צנונ','בטט','תפוא','דלעת','תירס','פטרי','גינגר','קולרבי','שעועי','אפונ','ארטישוק','סלרי','לוביה','במי','קלחי','פירות','ירקות','פרי','ירק'];
+const NOT_PRODUCE=/^(מיובש|יבש|חטיפ|מיצ|ריב|רסק|שימור|קפוא|מוקפא|קלוי|ציפס|ממרח|יוגורט|בטעמ|טעמ|רוטב|גלי|שוקולד|משקה|קטשופ|חמוצ|כבוש|מרק|פתיתי|אבקה|תרכיז|נקטר|סירופ|עוגה|עוגי|במבה|ביסלי)/;
+/* שם לתצוגה: השם המקורי בלי הרשת, המותג והגודל ("קקאו 150 גר רמי לוי" ← "קקאו") */
+const NOISE_RAW_RE=new RegExp('(^|[^א-תa-z])('+NAME_NOISE_RAW.slice().sort((x,y)=>y.length-x.length).join('|')+')(?=$|[^א-תa-z])','gi');
+function cleanName(n){
+  let s=String(n||'').replace(NOISE_RAW_RE,'$1 ').replace(/\d+(?:[.,]\d+)?\s*(?:ק["״]?ג|קילו(?:גרם)?|גרם|גר['׳]?|ג['׳]?|מ["״]?ל|ליטר|ל['׳]?)(?![א-ת])/g,' ');
+  s=s.replace(/\s+(מובחר|מובחרים|ארוז|ארוזה|בתפזורת|במשקל)(?=\s|$)/g,' ').replace(/\s+/g,' ').trim();
+  return s.length>=2?s:String(n||'').trim();
+}
+function clusterName(c){const ns=c.rows.map(r=>cleanName(r.name)).filter(Boolean);return ns.sort((x,y)=>x.length-y.length)[0]||c.rows[0].name}
+function isProduce(info){
+  const w=info&&info.words||[];if(!w.length||w.some(x=>NOT_PRODUCE.test(x))) return false;
+  return w.some(x=>PRODUCE.some(p=>p.length<=3?x===p:x.startsWith(p)));
+}
 /* יחיד ורבים כאותו מוצר: בננה/בננות, תפוח/תפוחים, עגבנייה/עגבניות, ביצה/ביצים, שקית/שקיות.
    מקבל מילה אחרי החלפת אותיות סופיות (ם←מ), ומשאיר לפחות שתי אותיות (מים נשאר מים) */
 function heStem(w){
@@ -1373,6 +1393,7 @@ function heStem(w){
 function nameInfo(name){
   let s=String(name||'').toLowerCase().replace(BIDI,'').replace(/[״”“"׳’‘´`']/g,'').replace(/[ךםןףץ]/g,c=>FINALS[c]);
   s=s.replace(/(\d),(\d)/g,'$1.$2');
+  s=s.replace(NOISE_RE,'$1 ');
   const sizes=[],pct=[];
   s=s.replace(/(\d+(?:\.\d+)?)\s*%/g,(m,n)=>{pct.push(String(+n));return' '});
   s=s.replace(/(\d+(?:\.\d+)?)\s*(קילוגרמ|קילו|קג|ליטרימ|ליטר|מיליליטר|מל|גרמ|גר|ג|ל|kg|g|ml|l)(?![א-תa-z])/g,(m,n,u)=>{
@@ -1388,7 +1409,7 @@ function nameInfo(name){
   toks.forEach(t=>{
     if(/^\d+$/.test(t)){if(t.length<=3) words.push(t);return}
     if(t.length<2||NAME_STOP.has(t)) return;
-    if(/[א-ת]/.test(t)) t=heStem(t);
+    if(/[א-ת]/.test(t)){t=heStem(t);if(NAME_STOP.has(t)) return}
     if(/^[a-z]{2,3}$/.test(t)&&/[א-ת]/.test(s)) return; /* שאריות קריאה כמו nv או sown בתוך שם בעברית */
     words.push(t);
   });
@@ -1405,7 +1426,7 @@ function wordSim(x,y){
 }
 const SIM_MIN=0.66;
 function nameSim(a,b){
-  if(a.sizes.length&&b.sizes.length&&a.sizes.join()!==b.sizes.join()) return 0;
+  /* גדלי אריזה שונים הם אותו מוצר: המחיר מושווה ל-100 גרם או לליטר */
   if(a.pct.length&&b.pct.length&&a.pct.join()!==b.pct.join()) return 0;
   const wa=a.words,wb=b.words; if(!wa.length||!wb.length) return 0;
   const used=new Set();let m=0,full=0;
@@ -1646,11 +1667,22 @@ function parseItems(raw,total){
 
 /* --- השוואת מחירים בין קבלות --- */
 const CMP_DAYS=120;
+/* לפי מה משווים: ק"ג (במשקל), 100 גרם או ליטר (לפי הגודל בשם), או יחידה.
+   פרי או ירק בלי כמות ידועה לא נכנס להשוואה, כי המחיר שלו לבדו לא אומר כמה עלה הק"ג */
+const BASIS_LBL={kg:'לק"ג',g:'ל-100 גרם',ml:'לליטר',u:'ליח׳'};
+function measure(qty,unit,price,info){
+  qty=Number(qty);price=Number(price);if(!(qty>0)||!(price>0)) return null;
+  if(unit==='kg'||(!unit&&!Number.isInteger(qty))) return {b:'kg',q:qty,u:price/qty};
+  const sz=info.sizes[0];
+  if(unit!=='u'&&isProduce(info)&&!sz) return null;
+  if(sz){const v=parseFloat(sz),ml=/מל$/.test(sz);if(v>0){const q=ml?qty*v/1000:qty*v/100;return {b:ml?'ml':'g',q,u:price/q}}}
+  return {b:'u',q:qty,u:price/qty};
+}
 function clusterItems(rows){
   const lim=Date.now()-CMP_DAYS*864e5;
   const list=rows.filter(r=>r.store&&r.price>0&&r.qty>0&&r.name&&Number(r.t)>=lim)
-    .map(r=>({tx:r.tx_id,store:r.store,name:r.name,qty:Number(r.qty),price:Number(r.price),t:Number(r.t),u:Number(r.price)/Number(r.qty),info:nameInfo(r.name)}))
-    .filter(r=>r.info.words.length).sort((a,b)=>b.t-a.t);
+    .map(r=>{const info=nameInfo(r.name),m=measure(r.qty,r.unit,r.price,info);return m&&{tx:r.tx_id,store:r.store,name:r.name,qty:Number(r.qty),price:Number(r.price),t:Number(r.t),u:m.u,q:m.q,b:m.b,info}})
+    .filter(r=>r&&r.info.words.length).sort((a,b)=>b.t-a.t);
   const cl=[];
   list.forEach(r=>{
     let best=null,bs=0;
@@ -1659,10 +1691,18 @@ function clusterItems(rows){
   });
   return cl;
 }
-/* המחיר האחרון בכל רשת (בלי הקבלה הנוכחית), מהזול ליקר */
-function storePrices(cluster,excludeTx){
+/* הבסיס הנפוץ במוצר (ק"ג, 100 גרם, ליטר או יחידה) */
+function mainBasis(cluster){const n={};cluster.rows.forEach(r=>{n[r.b]=(n[r.b]||0)+1});return Object.keys(n).sort((x,y)=>n[y]-n[x])[0]}
+/* המחיר האחרון בכל רשת (בלי הקבלה הנוכחית), באותו בסיס השוואה, מהזול ליקר */
+function storePrices(cluster,excludeTx,basis){
+  const b=basis||mainBasis(cluster),by=new Map();
+  cluster.rows.forEach(r=>{if(r.b===b&&r.tx!==excludeTx&&!by.has(r.store)) by.set(r.store,r)});
+  return [...by.values()].sort((a,b)=>a.u-b.u);
+}
+/* כשהגודל ידוע רק בצד אחד ("חלב 3%" מול "חלב 3% 1 ליטר"): משווים מחיר לאריזה */
+function storePricesPkg(cluster,excludeTx){
   const by=new Map();
-  cluster.rows.forEach(r=>{if(r.tx!==excludeTx&&!by.has(r.store)) by.set(r.store,r)});
+  cluster.rows.forEach(r=>{if(r.b!=='kg'&&r.tx!==excludeTx&&!by.has(r.store)) by.set(r.store,{...r,b:'u',q:r.qty,u:r.price/r.qty})});
   return [...by.values()].sort((a,b)=>a.u-b.u);
 }
 function findCluster(clusters,name){
@@ -1675,11 +1715,14 @@ function findCluster(clusters,name){
 function compareReceipt(items,store,clusters,excludeTx){
   const rows=items.map(it=>{
     if(it.disc||!(it.price>0)) return {skip:true};
+    const info=nameInfo(it.name),m=measure(it.qty>0?it.qty:1,it.unit,it.price,info);
+    if(!m) return {none:true,noqty:true};
     const c=findCluster(clusters,it.name);
-    const sp=c?storePrices(c,excludeTx):[];
+    let sp=c?storePrices(c,excludeTx,m.b):[],mm=m;
+    if(!sp.length&&c&&m.b!=='kg'){sp=storePricesPkg(c,excludeTx);mm={b:'u',q:it.qty>0?it.qty:1,u:it.price/(it.qty>0?it.qty:1)}}
     if(!sp.length) return {none:true};
-    const q=it.qty>0?it.qty:1,u=it.price/q,best=sp[0],diff=Math.round((u-best.u)*100)/100;
-    return {best,diff,q,u,sp};
+    const best=sp[0],diff=Math.round((mm.u-best.u)*100)/100;
+    return {best,diff,q:mm.q,u:mm.u,b:mm.b,sp};
   });
   let over=0,save=0,cmp=0;
   rows.forEach(r=>{if(r.none||r.skip) return;cmp++;if(r.diff>0.004) over+=r.diff*r.q;else if(r.diff<-0.004) save+=-r.diff*r.q});
@@ -1692,7 +1735,7 @@ function priceTable(clusters){
     const sp=storePrices(c,null);
     if(sp.length<2) return;
     const lo=sp[0],hi=sp[sp.length-1];
-    out.push({name:c.rows[0].name,stores:sp,lo,hi,gap:hi.u-lo.u,pct:lo.u>0?(hi.u-lo.u)/hi.u:0});
+    out.push({name:clusterName(c),stores:sp,lo,hi,gap:hi.u-lo.u,pct:lo.u>0?(hi.u-lo.u)/hi.u:0,lbl:BASIS_LBL[lo.b]});
   });
   return out.sort((a,b)=>b.gap*1-a.gap*1);
 }
@@ -1712,7 +1755,7 @@ function loadItems(force){
     try{
       const since=Date.now()-CMP_DAYS*864e5,rows=[];
       for(let p=0;p<5;p++){
-        const q=await sb.from('receipt_items').select('tx_id,store,name,qty,price,t').eq('cat','מזון').eq('del',false).gte('t',since).order('t',{ascending:false}).range(p*1000,p*1000+999);
+        const q=await sb.from('receipt_items').select('tx_id,store,name,qty,unit,price,t').eq('cat','מזון').eq('del',false).gte('t',since).order('t',{ascending:false}).range(p*1000,p*1000+999);
         if(q.error) return false;
         rows.push(...q.data); if(q.data.length<1000) break;
       }
@@ -1724,7 +1767,7 @@ function loadItems(force){
 }
 async function saveItems(txId,list,meta){
   if(!list.length) return true;
-  const rows=list.map((x,i)=>({tx_id:txId,store:meta.store||'',name:x.name.slice(0,120),key:nameKey(x.name),qty:Math.min(9999,Math.max(0.001,x.qty||1)),price:x.price,off:x.off>0&&!x.disc?Math.round(x.off*100)/100:0,t:meta.t,cat:meta.cat,by_name:meta.by||null,del:false,pos:i}));
+  const rows=list.map((x,i)=>({tx_id:txId,store:meta.store||'',name:x.name.slice(0,120),key:nameKey(x.name),qty:Math.min(9999,Math.max(0.001,x.qty||1)),unit:x.unit==='kg'||x.unit==='u'?x.unit:(Number.isInteger(x.qty||1)?null:'kg'),price:x.price,off:x.off>0&&!x.disc?Math.round(x.off*100)/100:0,t:meta.t,cat:meta.cat,by_name:meta.by||null,del:false,pos:i}));
   const {error}=await sb.from('receipt_items').insert(rows);
   itemsDirty=true;
   return !error;
@@ -1732,7 +1775,7 @@ async function saveItems(txId,list,meta){
 /* שורת ההשוואה מתחת לפריט */
 function cmpNote(c,store){
   if(!c||c.skip||c.none) return '';
-  const b=c.best,per=c.q!==1?' ליח׳':'',same=b.store===store,d=bd(shortDate(b.t));
+  const b=c.best,per=c.b!=='u'||c.q!==1?' '+BASIS_LBL[c.b]:'',same=b.store===store,d=bd(shortDate(b.t));
   if(c.diff>0.004) return `<span class="up">יקר ב-${bd(money2(c.diff))}${per} ${same?`מהמחיר שנרשם כאן ב-${d}`:`מהמחיר ב${esc(b.store)}`} (${bd(money2(b.u))}${same?'':' · '+d})</span>`;
   if(c.diff<-0.004) return `<span class="dn">הכי זול שנרשם: זול ב-${bd(money2(-c.diff))}${per} מ${same?`המחיר שנרשם כאן ב-${d}`:`המחיר ב${esc(b.store)}`} (${bd(money2(b.u))})</span>`;
   return `<span class="dn">${same?'אותו מחיר כמו בפעם הקודמת':'אותו מחיר כמו הזול ביותר שנרשם, ב'+esc(b.store)}</span>`;
@@ -1742,17 +1785,18 @@ function ItemsBox(root,opt){
   root.innerHTML=`<table class="it" hidden><colgroup><col><col style="width:60px"><col style="width:76px"><col style="width:34px"></colgroup><thead><tr><th>פריט</th><th>כמות</th><th>מחיר</th><th></th></tr></thead><tbody></tbody></table><p class="hint ie" hidden></p><div class="iact"><button type="button" class="lb" data-act="add">הוספת שורה</button></div><div class="isum" aria-live="polite"></div>`;
   const tb=root.querySelector('tbody'),tbl=root.querySelector('table'),emp=root.querySelector('.ie'),sum=root.querySelector('.isum');
   const dirty=v=>{if(opt.onChange)opt.onChange(v)};
-  const model=x=>({name:String(x.name||''),qty:(x.qty>0&&x.qty!==1)?String(x.qty):'1',price:x.price==null||isNaN(x.price)?'':(+x.price).toFixed(2),disc:!!x.disc,off:Number(x.off)>0?Number(x.off):0});
+  const model=x=>({name:String(x.name||''),qty:(x.qty>0&&x.qty!==1)?String(x.qty):'1',price:x.price==null||isNaN(x.price)?'':(+x.price).toFixed(2),disc:!!x.disc,off:Number(x.off)>0?Number(x.off):0,
+    unit:x.unit==='kg'||x.unit==='u'?x.unit:(x.qty>0&&!Number.isInteger(+x.qty)?'kg':null)});
   function draw(){
     tb.innerHTML=rows.map((r,i)=>`<tr class="r" data-i="${i}"><td><input data-f="name" dir="auto" value="${esc(r.name)}" autocomplete="off" aria-label="שם הפריט"></td><td><input data-f="qty" inputmode="decimal" value="${esc(r.qty)}" autocomplete="off" aria-label="כמות"></td><td><input data-f="price" inputmode="decimal" value="${esc(r.price)}" placeholder="?" autocomplete="off" aria-label="מחיר"></td><td><button type="button" class="lb x" aria-label="מחיקת השורה">×</button></td></tr><tr class="iu" data-i="${i}" hidden><td colspan="4"></td></tr><tr class="cm" data-i="${i}" hidden><td colspan="4"></td></tr>`).join('');
     tbl.hidden=!rows.length;
     emp.hidden=!!rows.length; emp.textContent=opt.emptyText||'לא נמצאו פריטים.';
   }
-  const list=()=>rows.map(r=>{const q=numOf(r.qty);return {name:r.name.trim(),qty:q>0?q:1,price:numOf(r.price),disc:r.disc,off:r.off||0}});
+  const list=()=>rows.map(r=>{const q=numOf(r.qty);return {name:r.name.trim(),qty:q>0?q:1,price:numOf(r.price),disc:r.disc,off:r.off||0,unit:r.unit||null}});
   /* מתחת לכל פריט: מחיר ליחידה (או לק"ג), ואם הייתה הנחה: המחיר לפני ההנחה, ההנחה ואחוז ההנחה */
   const unitNote=x=>{
     if(x.disc||!(x.price>0)) return '';
-    const kg=!Number.isInteger(x.qty),per=kg?'לק"ג':'ליחידה',parts=[];
+    const kg=x.unit==='kg'||(!x.unit&&!Number.isInteger(x.qty)),per=kg?'לק"ג':'ליחידה',parts=[];
     if(x.qty!==1) parts.push(`<b>${bd(money2(x.price/x.qty))}</b> ${per}`);
     if(x.off>0){
       const full=x.price+x.off,pct=Math.round(x.off/full*100);
@@ -1764,16 +1808,26 @@ function ItemsBox(root,opt){
   function refresh(){
     const ctx=opt.getCtx(),L=list(),store=ctx.store||'',food=ctx.cat==='מזון';
     const cr=food&&priceCl.length?compareReceipt(L,store,priceCl,ctx.exclude||null):null;
+    let noqty=0;
     rows.forEach((r,i)=>{
       const tu=root.querySelector(`tr.iu[data-i="${i}"]`);
-      if(tu){const h=unitNote(L[i]);tu.firstChild.innerHTML=h;tu.hidden=!h}
+      if(tu){
+        const x=L[i],info=nameInfo(x.name),prod=!x.disc&&x.price>0&&isProduce(info);
+        let h=unitNote(x);
+        /* פרי או ירק בלי כמות: שואלים כמה נקנה, כדי להשוות מחיר לק"ג או ליחידה */
+        if(prod&&!measure(x.qty,x.unit,x.price,info)){noqty++;h=`<span class="ask">כמה קניתם?</span> <input class="aq" inputmode="decimal" autocomplete="off" aria-label="כמה ${esc(x.name)} קניתם" placeholder="כמות"> <button type="button" class="lb" data-u="kg">ק"ג</button> <button type="button" class="lb" data-u="u">יחידות</button>`}
+        else if(prod&&x.unit) h=(h?h+' · ':'')+`<span class="nw">${x.unit==='kg'?`${bd(x.qty)} ק"ג`:`${bd(x.qty)} ${x.qty===1?'יחידה':'יחידות'}`}</span> <button type="button" class="lnk" data-ureset>שינוי</button>`;
+        if(tu.dataset.h!==h){tu.dataset.h=h;tu.firstChild.innerHTML=h}
+        tu.hidden=!h;
+      }
       const tr=root.querySelector(`tr.cm[data-i="${i}"]`); if(!tr) return;
       const h=cr?cmpNote(cr.rows[i],store):''; tr.firstChild.innerHTML=h; tr.hidden=!h;
     });
     const valid=L.filter(x=>x.name&&x.price===x.price);
     if(!valid.length){sum.innerHTML='';return}
     const total=r2(valid.reduce((s,x)=>s+x.price,0));
-    let h=`<div class="srow"><span>סכום הפריטים</span><b>${money2(total)}</b></div>`;
+    let h=noqty?`<p class="warn">${noqty===1?'לפרי או ירק אחד חסרה כמות':`ל-${noqty} פירות וירקות חסרה כמות`}. מלאו כמה קניתם (בק"ג או ביחידות) כדי שנדע איפה באמת הכי משתלם. בלי כמות ${noqty===1?'הוא לא נכנס':'הם לא נכנסים'} להשוואה.</p>`:'';
+    h+=`<div class="srow"><span>סכום הפריטים</span><b>${money2(total)}</b></div>`;
     /* סך ההנחות: הנחות שהוצמדו לפריטים, ושורות הנחה נפרדות */
     const offs=r2(valid.reduce((s,x)=>s+(x.disc?(x.price<0?-x.price:0):(x.off||0)),0));
     if(offs>0) h+=`<div class="srow"><span>לפני הנחות</span><b>${money2(r2(total+offs))}</b></div><div class="srow"><span>סך ההנחות בקבלה</span><b class="dn">${money2(offs)}</b></div>`;
@@ -1801,12 +1855,12 @@ function ItemsBox(root,opt){
       if(c.skip||c.none) return;
       const it=L[i];
       if(c.diff>0.004&&c.best.store!==store) there.push({it,c,gain:c.diff*c.q});
-      else if(c.diff<=0.004&&c.sp.some(s=>s.store!==store)) here.push(it.name);
+      else if(c.diff<=0.004&&c.sp.some(s=>s.store!==store)) here.push(cleanName(it.name));
     });
     there.sort((a,b)=>b.gain-a.gain);
     if(there.length||here.length){
       h+='<div class="cmpbox"><b>איפה עדיף לקנות</b><ul>';
-      there.slice(0,6).forEach(x=>{h+=`<li><b>${esc(x.it.name)}</b>: זול יותר ב${esc(x.c.best.store)} (${bd(money2(x.c.best.u))} במקום ${bd(money2(x.c.u))})</li>`});
+      there.slice(0,6).forEach(x=>{h+=`<li><b>${esc(cleanName(x.it.name))}</b>: זול יותר ב${esc(x.c.best.store)} (${bd(money2(x.c.best.u))} במקום ${bd(money2(x.c.u))} ${BASIS_LBL[x.c.b]})</li>`});
       if(there.length>6) h+=`<li>ועוד ${there.length-6} מוצרים.</li>`;
       if(here.length) h+=`<li>${store?'ב'+esc(store):'כאן'} הכי משתלם: ${here.slice(0,5).map(esc).join(', ')}${here.length>5?' ועוד':''}</li>`;
       h+='</ul>';
@@ -1820,6 +1874,18 @@ function ItemsBox(root,opt){
     rows[+tr.dataset.i][el.dataset.f]=el.value; dirty(true); refresh();
   });
   root.addEventListener('click',e=>{
+    const ub=e.target.closest('[data-u]'),ur=e.target.closest('[data-ureset]');
+    if(ub||ur){
+      const tu=e.target.closest('tr.iu'),i=+tu.dataset.i,r=rows[i];
+      if(ur){r.unit=null;if(!Number.isInteger(numOf(r.qty)))r.qty='1'}
+      else{
+        let v=numOf(tu.querySelector('.aq').value);
+        if(!(v>0)){if(ub.dataset.u==='u')v=numOf(r.qty)>0?numOf(r.qty):1;else{flash('כתבו כמה ק"ג קניתם');tu.querySelector('.aq').focus();return}}
+        if(ub.dataset.u==='u'&&!Number.isInteger(v)){flash('ביחידות כותבים מספר שלם');return}
+        r.qty=String(Math.round(v*1000)/1000);r.unit=ub.dataset.u;
+      }
+      draw();refresh();dirty(true);return;
+    }
     const x=e.target.closest('.x');
     if(x){const i=+x.closest('tr.r').dataset.i;rows.splice(i,1);draw();refresh();dirty(true);return}
     if(e.target.closest('[data-act="add"]')){
@@ -1854,14 +1920,14 @@ async function renderPrices(){
   let paid=0,gain=0;
   priceCl.forEach(c=>{
     const sp=storePrices(c,null); if(sp.length<2) return;
-    c.rows.forEach(r=>{paid+=r.price;gain+=Math.max(0,r.u-sp[0].u)*r.qty});
+    c.rows.forEach(r=>{if(r.b!==sp[0].b) return;paid+=r.price;gain+=Math.max(0,r.u-sp[0].u)*r.q});
   });
   sumEl.innerHTML=`<p class="hint" style="margin:0 0 10px">לפי ${receipts} ${receipts===1?'קבלת מזון':'קבלות מזון'}: ${priceCl.length} מוצרים, ו-${table.length} מהם נקנו ביותר מרשת אחת.</p>`+
     (table.length?`<div class="cmpbox" style="margin:0 0 14px"><b>אם כל מוצר היה נקנה ברשת הזולה</b><div class="srow"><span>חיסכון בקניות שתועדו</span><b class="dn">${money2(r2(gain))}</b></div><small>מתוך ${money2(r2(paid))} שהוצאתם על המוצרים שהושוו (${paid>0?Math.round(gain/paid*100):0}%).</small></div>`:'');
   if(!table.length){listEl.innerHTML='<p class="empty">עוד אין מוצר שנקנה בשתי רשתות. כשיהיה, יופיע כאן איפה הוא זול יותר.</p>'}
   else listEl.innerHTML=table.slice(0,40).map(p=>{
-    const others=p.stores.slice(1).map(s=>`${esc(s.store)} ${money2(s.u)}`).join(' · ');
-    return `<div class="pr"><div class="ph"><b>${esc(p.name)}</b><span class="pg">פער ${money2(p.gap)} (${Math.round(p.pct*100)}%)</span></div><div class="pb dn">הכי זול ב<b>${esc(p.lo.store)}</b>: ${money2(p.lo.u)} <small>(${shortDate(p.lo.t)})</small></div><div class="po">${others}</div></div>`;
+    const others=p.stores.slice(1).map(s=>`${esc(s.store)} ${money2(s.u)}`).join(' · ')+` <small>(${p.lbl})</small>`;
+    return `<div class="pr"><div class="ph"><b>${esc(p.name)}</b><span class="pg">פער ${money2(p.gap)} (${Math.round(p.pct*100)}%)</span></div><div class="pb dn">הכי זול ב<b>${esc(p.lo.store)}</b>: ${money2(p.lo.u)} ${p.lbl} <small>(${shortDate(p.lo.t)})</small></div><div class="po">${others}</div></div>`;
   }).join('')+(table.length>40?`<p class="hint" style="margin:8px 0 0">מוצגים 40 הפערים הגדולים מתוך ${table.length}.</p>`:'');
   /* לוח רשתות */
   const st=new Map();
@@ -1878,7 +1944,7 @@ async function renderPrices(){
   const one=priceCl.filter(c=>storePrices(c,null).length===1);
   if(one.length){
     const by=new Map();
-    one.forEach(c=>{const s=storePrices(c,null)[0];(by.get(s.store)||by.set(s.store,[]).get(s.store)).push(c.rows[0].name)});
+    one.forEach(c=>{const s=storePrices(c,null)[0];(by.get(s.store)||by.set(s.store,[]).get(s.store)).push(clusterName(c))});
     $('prone').innerHTML=`<details class="more"><summary>${one.length} מוצרים</summary>${[...by.entries()].map(([s,n])=>`<p style="margin:10px 0 0"><b>${esc(s)}</b><br><small>${n.slice(0,30).map(esc).join(', ')}${n.length>30?' ועוד':''}</small></p>`).join('')}</details>`;
     $('proncard').hidden=false;
   }
@@ -2399,11 +2465,12 @@ function aiToParsed(d,model){
   (Array.isArray(d.items)?d.items:[]).slice(0,150).forEach(x=>{
     const name=String(x&&x.name||'').replace(/\s+/g,' ').trim().slice(0,80);
     let price=num(x.price),off=Math.abs(num(x.discount)||0),qty=num(x.qty);
+    const unit=x.unit==='kg'||(qty>0&&!Number.isInteger(qty))?'kg':x.unit==='unit'?'u':null;
     if(price==null||!name) return;
     if(!(qty>0)||qty>999) qty=1;
     if(price<0){items.push({name,qty:1,price:r2(price),disc:true});return}
-    if(off>0&&off<price) items.push({name,qty,price:r2(price-off),off:r2(off),unsure:!!x.unsure});
-    else items.push({name,qty,price:r2(price),unsure:!!x.unsure});
+    if(off>0&&off<price) items.push({name,qty,unit,price:r2(price-off),off:r2(off),unsure:!!x.unsure});
+    else items.push({name,qty,unit,price:r2(price),unsure:!!x.unsure});
   });
   const sum=r2(items.reduce((s,x)=>s+x.price,0)),total=num(d.total);
   const best=total>0?r2(total):sum>0?sum:null;
@@ -2763,12 +2830,12 @@ const rvBox=ItemsBox($('rvitems'),{
 });
 async function rvLoadItems(id){
   const my=++rvSeq;
-  const q=await sb.from('receipt_items').select('id,name,qty,price,off,store,pos').eq('tx_id',id).order('pos',{ascending:true});
+  const q=await sb.from('receipt_items').select('id,name,qty,unit,price,off,store,pos').eq('tx_id',id).order('pos',{ascending:true});
   if(my!==rvSeq||!rvCur||rvCur.id!==id) return;
   if(q.error){$('rvist').textContent='לא ניתן לטעון את פירוט הפריטים';return}
   rvCur.itemIds=q.data.map(x=>x.id);
   rvCur.store=(q.data[0]&&q.data[0].store)||storeOf(rvCur.n||'');
-  rvBox.set(q.data.map(x=>({name:x.name,qty:Number(x.qty),price:Number(x.price),off:Number(x.off)||0,disc:Number(x.price)<0})));
+  rvBox.set(q.data.map(x=>({name:x.name,qty:Number(x.qty),unit:x.unit||null,price:Number(x.price),off:Number(x.off)||0,disc:Number(x.price)<0})));
   $('rvisave').hidden=true;
   await loadItems();
   if(my===rvSeq&&rvCur&&rvCur.id===id) rvBox.refresh();
